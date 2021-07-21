@@ -7,7 +7,7 @@ def main():
     print(sb.api_client.VERSIONS)
     match = 18245
     events = sb.events(match_id=match)
-    events.to_csv(str(match) + '.csv')
+    #events.to_csv(str(match) + '.csv')
 
     events['timestamp'] = pd.to_datetime(events['timestamp'])
     chances = events[events.shot.isna()==False].loc[:, ['timestamp', 'period']]
