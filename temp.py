@@ -2,46 +2,111 @@ import datetime
 import pandas as pd
 import numpy as np
 from statsbombpy import sb
+from attributes import names_v2
 
 
-def main():
-    match = 18245
-    raw = sb.events(match_id=match)
-    game = pd.DataFrame()
-    for period in set(raw.period.values):
-        events = raw[raw['period'] == period]
-        events = events.join(pd.json_normalize(events['pass']), rsuffix='_pass')
-        events = events.join(pd.json_normalize(events['shot']), rsuffix='_shot')
-        events = events.set_index(pd.DatetimeIndex(events['timestamp']))
-        events = events.sort_index()
-        events = events[['timestamp', 'carry', 'counterpress', 'dribble', 'duration', 'index', 'location', 'pass',
-                         'period', 'play_pattern', 'player', 'possession', 'possession_team', 'shot', 'team', 'type',
-                         'under_pressure', 'length', 'angle', 'end_location', 'recipient.name', 'height.id',
-                         'height.name',
-                         'type.id', 'type.name', 'body_part.id', 'body_part.name', 'switch', 'through_ball',
-                         'shot_assist']]
-                         #'inswinging', 'cut_back', 'miscommunication']]
-        events['chance'] = events['shot']
-        events.loc[events['chance'].isna() == False, 'chance'] = True
+def euclidean_distance(start, end):
+    return np.sqrt(np.power(start[1] - start[0], 2) + np.power(end[1] - end[0], 2))
 
-        def count_unique(x):
-            return len(set(x))
 
-        def changed(x):
-            return count_unique(x) > 1
+def get_matches():
+    comps = sb.competitions()
+    matches = []
+    for comp, seas in zip(comps['competition_id'], comps['season_id']):
+        if seas in [76]:
+            continue
+        print(f'Processing competition {comp} and season {seas}'.format())
+        [matches.append(match) for match in sb.matches(competition_id=comp, season_id=seas)['match_id']]
+    return matches
 
-        def ends_in_chance(x):
-            return bool(x[-1]) is True
 
-        frames = events.rolling('30S').agg({'length': np.var,
-                                            'length': np.sum,
-                                            'duration': np.sum,
-                                            'angle': np.max,
-                                            'chance': ends_in_chance,
-                                            'index': np.count_nonzero,
-                                            'possession': count_unique})
+def csv_events(match_id):
+    sb.events(match_id=match_id).to_csv(str(match_id) + '_raw.csv')
 
-        frames['speed'] = frames['length'] / frames['duration']
-        game = pd.concat([game, frames])
-    game.to_csv(str(match) + '.csv')
-    return game
+
+def main(match_ids='ALL'):
+    games = pd.DataFrame()
+    matches = get_matches() if match_ids == 'ALL' else match_ids
+    for match in matches:
+        raw = sb.events(match_id=match)
+        for period in set(raw.period.values):
+            events = raw[raw['period'] == period]
+            events = events.set_index(pd.DatetimeIndex(events['timestamp']))
+            events = events.sort_index()
+            try:
+                events = events[names_v2()]
+                events = events.loc[~events['type'].isin(['Block', 'Goal Keeper', 'Starting XI', 'Half Start',
+                                                          'Injury Stoppage', 'Substitution', 'Tactical Shift',
+                                                          'Half End'])]
+                events['location_x'] = events['location'].apply(lambda x: x[0] if type(x) == list else np.nan)
+                events['location_y'] = events['location'].apply(lambda x: x[1] if type(x) == list else np.nan)
+                events['chance'] = events['shot_type']
+                events.loc[events['chance'].isna() == False, 'chance'] = 1
+                events.loc[events['chance'].isna() == True, 'chance'] = 0
+
+                def carry_length_apply(event):
+                    if event['carry_end_location'] is np.nan:
+                        return 0.0
+                    return euclidean_distance(event['location'], event['carry_end_location'])
+
+                events['carry_length'] = events.apply(func=carry_length_apply, axis=1)
+
+                def count_unique(x):
+                    return len(set(x))
+
+                def changed(x):
+                    return count_unique(x) > 1
+
+                def ends_in_chance(x):
+                    return x[-1] == 1
+
+                frames = events.rolling('20S').agg({  # 'pass_length': np.var,
+                    'period': lambda x: x[-1],
+                    'pass_length': np.sum,
+                    'location_x': np.var,
+                    'location_y': np.var,
+                    'duration': np.sum,
+                    'chance': ends_in_chance,
+                    'index': lambda x: len(x),
+                    'carry_length': np.sum,
+                    'possession': count_unique
+                    # 'pass_angle': np.max,
+                    # 'index': np.count_nonzero,
+
+                })
+
+                frames['speed'] = (frames['pass_length'] + frames['carry_length']) / frames['duration']
+                frames.replace([np.inf, -np.inf], np.nan, inplace=True)
+                frames = frames.fillna(0.0)
+                games = pd.concat([games, frames])
+            except:
+                print('Error, skipping')
+    games.to_csv('games.csv')
+    return games
+
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+
+
+def log_reg(x):
+    y = x['chance']
+    x = x.drop(columns=['chance'])
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=0)
+    model = LogisticRegression()
+    model.fit(x_train, y_train)
+    lr_probs = model.predict_proba(x_test)
+    # keep probabilities for the positive outcome only
+    lr_probs = lr_probs[:, 1]
+    # calculate scores
+    ns_probs = [0 for _ in range(len(y_test))]
+    ns_auc = roc_auc_score(y_test, ns_probs)
+    lr_auc = roc_auc_score(y_test, lr_probs)
+    # summarize scores
+    print('No Skill: ROC AUC=%.3f' % (ns_auc))
+    print('Logistic: ROC AUC=%.3f' % (lr_auc))
+    score = model.score(x_test, y_test)
+    print(model.coef_)
+    print(model.intercept_)
+    print(score)
