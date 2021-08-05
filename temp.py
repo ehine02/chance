@@ -34,6 +34,55 @@ def plot_events(events):
         ax.plot(event.location_x, event.location_y)
 
 
+from queue import Queue
+from threading import Thread
+
+
+class Worker(Thread):
+    def __init__(self,queue):
+        super(Worker, self).__init__()
+        self._q = queue
+        self.daemon = True
+        self.start()
+
+    def run(self):
+        while True:
+            f, args, kwargs = self._q.get()
+            try:
+                print(f(*args, **kwargs))
+            except Exception as e:
+                print(e)
+            self._q.task_done()
+
+
+class ThreadPool(object):
+    def __init__(self, num_t=5):
+        self._q = Queue(num_t)
+        # Create Worker Thread
+        for _ in range(num_t):
+            Worker(self._q)
+
+    def add_task(self, f, *args, **kwargs):
+        self._q.put((f, args, kwargs))
+
+    def wait_complete(self):
+        self._q.join()
+
+import ast
+
+
+def xg_events():
+    e = pd.read_csv('all_events.csv')
+    e = e.loc[~e['shot_type'].isin([np.nan, 'Penalty'])]
+    e = e[['location', 'shot_type', 'shot_outcome']]
+    e['location'] = e.location.apply(ast.literal_eval)
+    e['location_x'] = e['location'].apply(lambda x: round(x[0], 0))
+    e['location_y'] = e['location'].apply(lambda x: round(x[1], 0))
+    e['goal'] = e['shot_outcome'] == 'Goal'
+    e = e.drop(columns=['location', 'shot_type', 'shot_outcome'])
+    return e
+
+
 def main(match_ids='ALL'):
     games = pd.DataFrame()
     matches = get_matches() if match_ids == 'ALL' else match_ids
@@ -121,12 +170,14 @@ def label_frames(events):
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import StandardScaler
 
 
-def log_reg(x):
-    y = x['chance']
-    x = x.drop(columns=['chance'])
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=0)
+def log_reg(x, target='chance'):
+    y = x[target]
+    x = x.drop(columns=[target])
+    x = StandardScaler().fit_transform(x)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
     model = LogisticRegression()
     model.fit(x_train, y_train)
     lr_probs = model.predict_proba(x_test)
@@ -139,7 +190,5 @@ def log_reg(x):
     # summarize scores
     print('No Skill: ROC AUC=%.3f' % (ns_auc))
     print('Logistic: ROC AUC=%.3f' % (lr_auc))
-    score = model.score(x_test, y_test)
-    print(model.coef_)
-    print(model.intercept_)
-    print(score)
+    print(model.score(x_test, y_test))
+    return model
