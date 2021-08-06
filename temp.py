@@ -77,7 +77,7 @@ def xg_events():
     e = e[['location', 'shot_type', 'shot_outcome']]
     e['location'] = e.location.apply(ast.literal_eval)
     e['location_x'] = e['location'].apply(lambda x: round(x[0], 0))
-    e['location_y'] = e['location'].apply(lambda x: round(x[1], 0))
+    e['location_y'] = e['location'].apply(lambda x: abs(40 - round(x[1], 0)))
     e['goal'] = e['shot_outcome'] == 'Goal'
     e = e.drop(columns=['location', 'shot_type', 'shot_outcome'])
     return e
@@ -176,7 +176,7 @@ from sklearn.preprocessing import StandardScaler
 def log_reg(x, target='chance'):
     y = x[target]
     x = x.drop(columns=[target])
-    x = StandardScaler().fit_transform(x)
+    #x = StandardScaler().fit_transform(x)
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
     model = LogisticRegression()
     model.fit(x_train, y_train)
@@ -192,3 +192,15 @@ def log_reg(x, target='chance'):
     print('Logistic: ROC AUC=%.3f' % (lr_auc))
     print(model.score(x_test, y_test))
     return model
+
+
+def xg_map():
+    xe = xg_events()
+    m = log_reg(xe, 'goal')
+    p = pd.DataFrame(np.zeros([80, 120])*np.nan)
+    for y in range(40):
+        for x in range(120):
+            xg = m.predict_proba([[x, y]])[0][1]
+            p.at[41+y, x] = xg
+            p.at[40-y, x] = xg
+    return p, m
