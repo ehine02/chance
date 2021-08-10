@@ -4,10 +4,12 @@ import numpy as np
 from statsbombpy import sb
 from attributes import names_v2
 from mplsoccer import Pitch
+from xg_utils import xg_model
+import tensorflow as tf
 
 
 def euclidean_distance(start, end):
-    return np.sqrt(np.power(start[1] - start[0], 2) + np.power(end[1] - end[0], 2))
+    return np.sqrt(np.power(end[0] - start[0], 2) + np.power(end[1] - start[1], 2))
 
 
 def get_matches():
@@ -27,64 +29,16 @@ def csv_events(match_id):
 
 def plot_events(events):
     pitch = Pitch(pitch_type='statsbomb', pitch_color='#aabb97', line_color='white',
-              stripe_color='#c2d59d', stripe=True, axis=True, label=True, tick=True)  # optional stripes
+                  stripe_color='#c2d59d', stripe=True, axis=True, label=True, tick=True)  # optional stripes
     fig, ax = pitch.draw()
     events = events[events['chance'] == 1]
     for _, event in events.iterrows():
         ax.plot(event.location_x, event.location_y)
 
 
-from queue import Queue
-from threading import Thread
-
-
-class Worker(Thread):
-    def __init__(self,queue):
-        super(Worker, self).__init__()
-        self._q = queue
-        self.daemon = True
-        self.start()
-
-    def run(self):
-        while True:
-            f, args, kwargs = self._q.get()
-            try:
-                print(f(*args, **kwargs))
-            except Exception as e:
-                print(e)
-            self._q.task_done()
-
-
-class ThreadPool(object):
-    def __init__(self, num_t=5):
-        self._q = Queue(num_t)
-        # Create Worker Thread
-        for _ in range(num_t):
-            Worker(self._q)
-
-    def add_task(self, f, *args, **kwargs):
-        self._q.put((f, args, kwargs))
-
-    def wait_complete(self):
-        self._q.join()
-
-import ast
-
-
-def xg_events():
-    e = pd.read_csv('all_events.csv')
-    e = e.loc[~e['shot_type'].isin([np.nan, 'Penalty'])]
-    e = e[['location', 'shot_type', 'shot_outcome']]
-    e['location'] = e.location.apply(ast.literal_eval)
-    e['location_x'] = e['location'].apply(lambda x: round(x[0], 0))
-    e['location_y'] = e['location'].apply(lambda x: abs(40 - round(x[1], 0)))
-    e['goal'] = e['shot_outcome'] == 'Goal'
-    e = e.drop(columns=['location', 'shot_type', 'shot_outcome'])
-    return e
-
-
 def main(match_ids='ALL'):
     games = pd.DataFrame()
+    xg = xg_model()
     matches = get_matches() if match_ids == 'ALL' else match_ids
     for match in matches:
         raw = sb.events(match_id=match)
@@ -96,30 +50,34 @@ def main(match_ids='ALL'):
                 events = events[names_v2()]
                 events = events.loc[~events['type'].isin(['Block', 'Goal Keeper', 'Starting XI', 'Half Start',
                                                           'Injury Stoppage', 'Substitution', 'Tactical Shift',
-                                                          'Half End'])]
+                                                          'Half End', 'Pressure'])]
                 events['location_x'] = events['location'].apply(lambda x: x[0] if type(x) == list else np.nan)
                 events['location_y'] = events['location'].apply(lambda x: x[1] if type(x) == list else np.nan)
                 events['chance'] = events['shot_type']
                 events.loc[events['chance'].isna() == False, 'chance'] = 1
                 events.loc[events['chance'].isna() == True, 'chance'] = 0
 
-                def carry_length_apply(event):
-                    if event['carry_end_location'] is np.nan:
+                def calc_carry_length(event):
+                    if event.carry_end_location is np.nan:
                         return 0.0
-                    return euclidean_distance(event['location'], event['carry_end_location'])
+                    return euclidean_distance(event.location, event.carry_end_location)
 
-                def distance_from_goal(event):
-                    if event['location_x'] is np.nan or event['location_y'] is np.nan:
+                def calc_to_goal(event):
+                    if event.location_x is np.nan or event.location_y is np.nan:
                         return 0.0
-                    return euclidean_distance(event['location'], [120, 40])
+                    return euclidean_distance(event.location, [120, 40])
 
-                events['carry_length'] = events.apply(func=carry_length_apply, axis=1)
-                events['to_goal'] = events.apply(func=distance_from_goal, axis=1)
-                #frames = label_frames(events)
+                def calc_xg(event):
+                    return xg.predict_proba([[event.location_x, event.location_y]])[0][1]
+
+                events['carry_length'] = events.apply(func=calc_carry_length, axis=1)
+                events['to_goal'] = events.apply(func=calc_to_goal, axis=1)
+                events['xg'] = events.apply(func=calc_xg, axis=1)
+                # frames = label_frames(events)
                 games = pd.concat([games, events])
             except:
                 print('Error, skipping')
-    #games.to_csv('games.csv')
+    # games.to_csv('games.csv')
     return games
 
 
@@ -162,45 +120,15 @@ def label_frames(events):
         if frame['chance'][-1] == 1:
             ed = 0
         frame['chance_seq'] = frame['chance'][-1] == 1
-        #pd.concat([frames, frame])
+        # pd.concat([frames, frame])
         frames.append(frame)
     return frames
 
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
-from sklearn.preprocessing import StandardScaler
 
 
-def log_reg(x, target='chance'):
-    y = x[target]
-    x = x.drop(columns=[target])
-    #x = StandardScaler().fit_transform(x)
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
-    model = LogisticRegression()
-    model.fit(x_train, y_train)
-    lr_probs = model.predict_proba(x_test)
-    # keep probabilities for the positive outcome only
-    lr_probs = lr_probs[:, 1]
-    # calculate scores
-    ns_probs = [0 for _ in range(len(y_test))]
-    ns_auc = roc_auc_score(y_test, ns_probs)
-    lr_auc = roc_auc_score(y_test, lr_probs)
-    # summarize scores
-    print('No Skill: ROC AUC=%.3f' % (ns_auc))
-    print('Logistic: ROC AUC=%.3f' % (lr_auc))
-    print(model.score(x_test, y_test))
-    return model
 
 
-def xg_map():
-    xe = xg_events()
-    m = log_reg(xe, 'goal')
-    p = pd.DataFrame(np.zeros([80, 120])*np.nan)
-    for y in range(40):
-        for x in range(120):
-            xg = m.predict_proba([[x, y]])[0][1]
-            p.at[41+y, x] = xg
-            p.at[40-y, x] = xg
-    return p, m
+
+
+
