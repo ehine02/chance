@@ -48,7 +48,8 @@ def load_events():
     e.loc[e.type == 'Carry', 'carry_speed'] = e.carry_length / e.duration
     e.loc[e.type == 'Pass', 'pass_speed'] = e.pass_length / e.duration
     e.loc[e.pass_speed != np.nan, 'pass_speed_text'] = pd.cut(e.pass_speed, bins=[-1, 5, 20, 150],
-                                                              labels=['tapped', 'solid', 'pinged'])
+                                                              #labels=['tapped', 'solid', 'pinged'])
+                                                              labels = ['tapped', 'solid', 'pinged'])
     e.loc[e.carry_speed != np.nan, 'carry_speed_text'] = pd.cut(e.carry_speed, bins=[-1, 2.5, 6, 1500],
                                                                 labels=['drifted', 'glided', 'surged'])
     e.loc[e.location != np.nan, 'to_goal_start'] = \
@@ -102,17 +103,15 @@ def main():
             max_events = len(events.index)
         events = events.set_index(events['index'])
         events = events.sort_index()
-        chance = False
         events_list = EventString()
         for _, row in events.iterrows():
-            chance = chance or row.chance
             event_type = str(row['type']).lower()
             if event_type in ['shot', 'block', 'goal keeper', 'pressure', 'clearance']:
                 continue
-            events_list.add(row.location_text)
-            events_list.add(row.progression_text)
+            #events_list.add(row.location_text)
+            #events_list.add(row.progression_text)
             if event_type == 'pass':
-                events_list.add(row.pass_outcome)
+                #events_list.add(row.pass_outcome)
                 events_list.add(row.pass_speed_text)
                 events_list.add(row.pass_height)
                 events_list.add(row.pass_type)
@@ -124,7 +123,7 @@ def main():
             events_list.add('|')
         match_pos = '_'.join([str(match_id), str(possession)])
         if len(events_list):
-            text = text.append({'match_pos': match_pos, 'text': events_list.to_str(), 'chance': chance}, ignore_index=True)
+            text = text.append({'match_pos': match_pos, 'text': events_list.to_str(), 'chance': events.chance.any()}, ignore_index=True)
     print('MAX EVENTS:', max_events)
     df = text.copy()
     # Oversampling performed here

@@ -1,8 +1,11 @@
+from time import sleep
+
 import pandas as pd
 import numpy as np
 import ast
 import matplotlib.pyplot as plt     # Plotting data
 from mplsoccer.pitch import Pitch
+import io
 
 
 def list_if_not_nan(x):
@@ -51,31 +54,50 @@ def draw_pitch():
     return pitch
 
 
+import cv2
+
+
 def main():
     e = load_events()
-    e = e.loc[~e['type'].isin(['Ball Receipt*'])]
+    e = e.loc[e['type'].isin(['Pass', 'Carry'])]
     e = e.loc[e['possession_team'] == e['team']]
     e.pass_height = e.pass_height.str.split().str[0]
     g = e.groupby(by=['match_id', 'possession'])
     count = 0
+    pitch = Pitch(figsize=(16, 8), tight_layout=False, goal_type='box', pitch_color='green', line_color='white')
+    e.loc[e.pass_speed != np.nan, 'pass_speed_alpha'] = pd.cut(e.pass_speed, bins=[-1, 5, 10, 20, 60, 150],
+                                                              labels=[0.1, 0.3, 0.5, 0.7, 1])
+    e.loc[e.carry_speed != np.nan, 'carry_speed_alpha'] = pd.cut(e.carry_speed, bins=[-1, 2, 4, 6, 10, 1500],
+                                                              labels=[0.1, 0.3, 0.5, 0.7, 1])
     for ((match_id, possession), events) in g:
         events = events.set_index(events['index'])
         events = events.sort_index()
         chance = False
-        pitch = Pitch(figsize=(16, 8), tight_layout=False, goal_type='box', pitch_color='green', line_color='white')
         fig, ax = pitch.draw()
         for _, row in events.iterrows():
             chance = chance or row.chance
             event_type = str(row['type']).lower()
-            if event_type == 'pass':
+            if event_type == 'pass' and row.pass_speed_alpha != np.nan:
                 lt1 = pitch.lines(row.location_x, row.location_y, row.pass_end_x, row.pass_end_y, ax=ax,
-                                  alpha=0.8, color="red", comet=True, label=str(row.index))
-            if event_type == 'carry':
+                                  alpha=row.pass_speed_alpha, color="red", comet=True, label=str(row.index))
+            if event_type == 'carry' and row.carry_speed_alpha != np.nan:
                 lt2 = pitch.lines(row.location_x, row.location_y, row.carry_end_x, row.carry_end_y, ax=ax,
-                                  alpha=0.8, color="blue", comet=True, label=str(row.index))
+                                  alpha=row.carry_speed_alpha, color="blue", comet=True, label=str(row.index))
 
-        plt.savefig('./poss_maps/' + str(match_id) + '_' + str(possession) + '.png', dpi=15)
+        plt.savefig('./poss_maps/' + str(match_id) + '_' + str(possession) + '_' + str(int(chance)) + '.png' )
+        plt.clf()
         plt.close()
+        fig.clf()
         count += 1
         if count % 100 == 0:
+            sleep(1)
             print(count)
+            #break
+    return e
+
+def fig2rgb_array(fig):
+    fig.canvas.draw()
+    arr = np.array(fig.canvas.renderer.buffer_rgba())
+    buf = fig.canvas.tostring_rgb()
+    ncols, nrows = fig.canvas.get_width_height()
+    return np.fromstring(buf, dtype=np.uint8).reshape(nrows, ncols, 3)
