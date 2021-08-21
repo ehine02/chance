@@ -40,6 +40,7 @@ def main(match_ids='ALL'):
     games = pd.DataFrame()
     xg = xg_model()
     matches = get_matches() if match_ids == 'ALL' else match_ids
+    count = 0
     for match in matches:
         raw = sb.events(match_id=match)
         for period in set(raw.period.values):
@@ -50,7 +51,8 @@ def main(match_ids='ALL'):
                 events = events[names_v2()]
                 events = events.loc[~events['type'].isin(['Block', 'Goal Keeper', 'Starting XI', 'Half Start',
                                                           'Injury Stoppage', 'Substitution', 'Tactical Shift',
-                                                          'Half End', 'Pressure'])]
+                                                          'Half End', 'Pressure', 'Bad Behaviour', 'Player On',
+                                                          'Player Off', 'Camera off', 'Camera On'])]
                 events['location_x'] = events['location'].apply(lambda x: x[0] if type(x) == list else np.nan)
                 events['location_y'] = events['location'].apply(lambda x: x[1] if type(x) == list else np.nan)
                 events['chance'] = events['shot_type']
@@ -75,9 +77,12 @@ def main(match_ids='ALL'):
                 events['xg'] = events.apply(func=calc_xg, axis=1)
                 # frames = label_frames(events)
                 games = pd.concat([games, events])
+                count += events.shape[0]
             except:
                 print('Error, skipping')
-    # games.to_csv('games.csv')
+            if count > 1000000:
+                break
+    games.to_csv('all_events_orig.csv')
     return games
 
 
