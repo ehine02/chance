@@ -1,8 +1,9 @@
+import keras
 import pandas as pd
 import numpy as np
 import ast
 
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from tensorflow.python.keras.layers import CuDNNGRU, Dense
 from tensorflow.python.keras.models import Sequential
@@ -43,7 +44,8 @@ def load_events():
         round(np.sqrt((120 - e.pass_end_x) ** 2 + (40 - e.pass_end_y) ** 2), 0)
     e.loc[e.type == 'Carry', 'to_goal_end'] = \
         round(np.sqrt((120 - e.carry_end_x) ** 2 + (40 - e.carry_end_y) ** 2), 0)
-    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100*(e.to_goal_start - e.to_goal_end) / e.to_goal_start, 0)
+    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100 * (e.to_goal_start - e.to_goal_end) / e.to_goal_start,
+                                                              0)
     e['chance'] = ~e['shot_type'].isna()
     # e.fillna(value=0.0, inplace=True)
     e = e.drop(columns=['location', 'pass_end_location', 'carry_end_location'])
@@ -64,7 +66,7 @@ def main():
         events = events.loc[events['type'].isin(['Pass', 'Carry'])]
         events = events.transpose()
         ts_list.append([events.loc['pass_speed'].combine_first(events.loc['carry_speed']).to_list()])
-    return np.asarray(ts_list), np.asarray(1*ts_class)
+    return np.asarray(ts_list), np.asarray(1 * ts_class)
 
 
 def classy(ts_data):
@@ -81,11 +83,11 @@ def classy(ts_data):
     max_seq = r_train_x.bounding_shape()[-1]
     keras_model = tf.keras.Sequential([
         tf.keras.layers.Input(shape=[None, None], dtype=tf.float64, ragged=True),
-        #tf.keras.layers.Embedding(10, 128),
-        #tf.keras.layers.LSTM(32),
-        #tf.keras.layers.Dense(32),
-        #tf.keras.layers.Activation(tf.nn.relu),
-        #tf.keras.layers.Dense(1)
+        # tf.keras.layers.Embedding(10, 128),
+        # tf.keras.layers.LSTM(32),
+        # tf.keras.layers.Dense(32),
+        # tf.keras.layers.Activation(tf.nn.relu),
+        # tf.keras.layers.Dense(1)
         tf.keras.layers.LSTM(32),
         tf.keras.layers.Dense(1, activation='softmax')
     ])
@@ -98,44 +100,12 @@ def classy(ts_data):
     keras_model.summary()
 
     history = keras_model.fit(r_train_x, y_train, epochs=NumEpochs, batch_size=BatchSize)
-                              #validation_data=(r_test_x, y_test))
+    # validation_data=(r_test_x, y_test))
     scores = keras_model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in keras_model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
     print(confusion_matrix(y_test, y_pred))
-
-
-def test():
-    xx = tf.ragged.constant([
-        [[0.1, 0.2]],
-        [[0.4, 0.7, 0.5, 0.6]]
-    ])
-
-    """
-    Labels represented as OneHotEncoding so you 
-    should use CategoricalCrossentropy instade of SparseCategoricalCrossentropy
-    """
-
-    yy = np.array([[0, 0, 1], [1, 0, 0]])
-
-    # For ragged tensor , get maximum sequence length
-    max_seq = xx.bounding_shape()[-1]
-
-    mdl = tf.keras.Sequential([
-        # Input Layer with shape = [Any,  maximum sequence length]
-        tf.keras.layers.Input(shape=[None, max_seq], batch_size=2, dtype=tf.float32, ragged=True),
-        tf.keras.layers.LSTM(64),
-        tf.keras.layers.Dense(3, activation='softmax')
-    ])
-
-    # CategoricalCrossentropy
-    mdl.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                optimizer=tf.keras.optimizers.Adam(1e-4),
-                metrics=['accuracy'])
-
-    mdl.summary()
-    history = mdl.fit(xx, yy, epochs=10)
 
 
 def test2():
@@ -187,7 +157,6 @@ def test2():
             print(y_train.shape)
             yield x_train, y_train
 
-
     model.fit_generator(train_generator(), steps_per_epoch=30, epochs=10, verbose=1)
 
 
@@ -222,16 +191,16 @@ def test3():
                 np.random.shuffle(self.indexes)
 
         def __data_generation(self, index):
-            Xb = np.empty((self.batch_size, *X[index].shape))
+            Xb = np.empty((self.batch_size, *x[index].shape))
             yb = np.empty((self.batch_size, *y[index].shape))
             # naively use the same sample over and over again
             for s in range(0, self.batch_size):
-                Xb[s] = X[index]
+                Xb[s] = x[index]
                 yb[s] = y[index]
             return Xb, yb
 
     # Parameters
-    dimensions = ['pass_speed', 'carry_speed', 'pass_angle', 'progression_pct', 'to_goal']
+    dimensions = ['progression_pct', 'to_goal']#['pass_speed', 'carry_speed', 'pass_angle', 'progression_pct', 'to_goal']
 
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
@@ -261,32 +230,117 @@ def test3():
         working.append(salary_band.sample(majority_count - len(salary_band), replace=True))
     # add the working list contents to the overall dataframe
     df = pd.concat(working)
-    print(df['chance'].value_counts())
 
-
-    X = np.array(df.seqs.to_list())
-    y = np.array([[t] for t in df.chance.to_list()])
-    print(X.shape)
+    x = np.array(df.seqs.to_list())
+    y = np.array([[int(t)] for t in df.chance.to_list()])
+    print(x.shape)
     print(y.shape)
 
-    X, x_test, y, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
+    x, x_test, y, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
 
     model = Sequential()
     model.add(LSTM(16, input_shape=(None, len(dimensions))))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[tf.keras.metrics.BinaryAccuracy(),
-                                                                         tf.keras.metrics.Precision(),
-                                                                         tf.keras.metrics.Recall(),
-                                                                         tf.keras.metrics.FalsePositives(),
-                                                                         tf.keras.metrics.FalseNegatives()])
+    model.add(Dense(1, activation=keras.activations.sigmoid))
+    model.compile(loss=keras.losses.BinaryCrossentropy(), optimizer='adam',
+                  metrics=[keras.metrics.Accuracy(),
+                           keras.metrics.Precision(),
+                           keras.metrics.Recall(),
+                           keras.metrics.FalsePositives(),
+                           keras.metrics.FalseNegatives()])
     print(model.summary())
-    model.fit_generator(MyBatchGenerator(X, y, batch_size=1), epochs=10)
 
-    y_test = pd.Series(int(t[0]) for t in y_test)
-    #scores = model.evaluate_generator(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
-    scores = model.evaluate(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
+
+    y_test = [int(t[0]) for t in y_test]
+    model.fit(MyBatchGenerator(x, y, batch_size=1), epochs=1)#, validation_data=(x_test, y_test))
+    # scores = model.evaluate_generator(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
+    scores = model.evaluate(MyBatchGenerator(x_test, y_test), steps=len(x_test), verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
-    y_prob = [i[0] for i in model.predict_generator(MyBatchGenerator(x_test, y_test, batch_size=1))]
+    y_prob = [i[0] for i in model.predict(MyBatchGenerator(x_test, y_test, batch_size=1))]
     y_pred = [round(i) for i in y_prob]
+    acc_a = keras.metrics.Accuracy()
+    acc_a.update_state(y_test, y_pred)
+    print(acc_a.result().numpy())
+    acc_b = keras.metrics.BinaryAccuracy()
+    acc_b.update_state(y_test, y_pred)
+    print(acc_b.result().numpy())
     print(confusion_matrix(y_test, y_pred))
-    return pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+    print(classification_report(y_test, y_pred))
+    return scores, model, pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+
+
+def test4():
+    from keras import Sequential
+    from tensorflow.keras.utils import Sequence
+    from keras.layers import LSTM, Dense, Masking
+    import numpy as np
+
+    # Parameters
+    dimensions = ['pass_speed', 'carry_speed', 'pass_angle', 'progression_pct', 'to_goal']
+
+    e = load_events()
+    e = e.loc[~e['type'].isin(['Ball Receipt*'])]
+    e.pass_height = e.pass_height.str.split().str[0]
+    e.type = e.type.str.lower()
+    e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
+    e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
+    g = e.groupby(by=['match_id', 'possession'])
+    sequences = []
+    target = []
+    max_seq = 0
+    for ((match_id, possession), events) in g:
+        if len(events.index) > max_seq:
+            max_seq = len(events.index)
+        events = events.set_index(events['index'])
+        events = events.sort_index()
+        seq_events = events[dimensions]
+        seq_events.fillna(value=0.0, inplace=True)
+        sequences.append(seq_events.values)
+        target.append(events.chance.any())
+
+    df = pd.DataFrame({'seqs': sequences, 'chance': target})
+    # Oversampling performed here
+    # first count the records of the majority
+    majority_count = df['chance'].value_counts().max()
+    working = [df]
+    # group by each salary band
+    for _, salary_band in df.groupby('chance'):
+        # append N samples to working list where N is the difference between majority and this band
+        working.append(salary_band.sample(majority_count - len(salary_band), replace=True))
+    # add the working list contents to the overall dataframe
+    df = pd.concat(working)
+
+    x = np.array(df.seqs.to_list())
+    y = np.array([[int(t)] for t in df.chance.to_list()])
+    print(x.shape)
+    print(y.shape)
+
+    special_value = -10.0
+    Xpad = np.full((x.shape[0], max_seq, len(dimensions)), fill_value=special_value)
+    for s, x in enumerate(x):
+        seq_len = x.shape[0]
+        Xpad[s, 0:seq_len, :] = x
+
+    x, x_test, y, y_test = train_test_split(Xpad, y, test_size=0.1, random_state=0)
+
+    model2 = Sequential()
+    model2.add(Masking(mask_value=special_value, input_shape=(max_seq, len(dimensions))))
+    model2.add(LSTM(16))
+    model2.add(Dense(1, activation='sigmoid'))
+    model2.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    print(model2.summary())
+    model2.fit(x, y, epochs=10, batch_size=32)
+    #y_test = np.asarray([[int(t[0])] for t in y_test])
+    scores = model2.evaluate(x_test, y_test, verbose=True)
+    print("Accuracy: %.2f%%" % (scores[1] * 100))
+    y_prob = model2.predict(x_test)
+    y_prob = [i[0] for i in y_prob]
+    y_pred = [round(i) for i in y_prob]
+    acc_a = keras.metrics.Accuracy()
+    acc_a.update_state(y_test, y_pred)
+    print(acc_a.result().numpy())
+    acc_b = keras.metrics.BinaryAccuracy()
+    acc_b.update_state(y_test, y_pred)
+    print(acc_b.result().numpy())
+    print(confusion_matrix(y_test, y_pred))
+    print(classification_report(y_test, y_pred))
+    return scores, model2, pd.DataFrame({'actual': [i[0] for i in y_test], 'predicted': y_pred, 'prob': y_prob})
