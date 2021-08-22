@@ -231,10 +231,7 @@ def test3():
             return Xb, yb
 
     # Parameters
-    N = 1000
-    halfN = int(N / 2)
-    dimension = 5
-    lstm_units = 3
+    dimensions = ['pass_speed', 'carry_speed', 'pass_angle', 'progression_pct', 'to_goal']
 
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
@@ -248,7 +245,7 @@ def test3():
     for ((match_id, possession), events) in g:
         events = events.set_index(events['index'])
         events = events.sort_index()
-        seq_events = events[['pass_speed', 'carry_speed', 'pass_angle', 'progression_pct', 'to_goal']]
+        seq_events = events[dimensions]
         seq_events.fillna(value=0.0, inplace=True)
         sequences.append(seq_events.values)
         target.append(events.chance.any())
@@ -275,18 +272,19 @@ def test3():
     X, x_test, y, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
 
     model = Sequential()
-    model.add(LSTM(lstm_units, input_shape=(None, dimension)))
+    model.add(LSTM(16, input_shape=(None, len(dimensions))))
     model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=[tf.keras.metrics.BinaryAccuracy(),
-                                                                            tf.keras.metrics.Precision(),
-                                                                            tf.keras.metrics.Recall(),
-                                                                            tf.keras.metrics.FalsePositives(),
-                                                                            tf.keras.metrics.FalseNegatives()])
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[tf.keras.metrics.BinaryAccuracy(),
+                                                                         tf.keras.metrics.Precision(),
+                                                                         tf.keras.metrics.Recall(),
+                                                                         tf.keras.metrics.FalsePositives(),
+                                                                         tf.keras.metrics.FalseNegatives()])
     print(model.summary())
-    model.fit_generator(MyBatchGenerator(X, y, batch_size=1), epochs=2)
+    model.fit_generator(MyBatchGenerator(X, y, batch_size=1), epochs=10)
 
-    y_test = pd.Series(t[0] for t in y_test)
-    scores = model.evaluate_generator(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
+    y_test = pd.Series(int(t[0]) for t in y_test)
+    #scores = model.evaluate_generator(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
+    scores = model.evaluate(MyBatchGenerator(x_test, y_test, batch_size=1), verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict_generator(MyBatchGenerator(x_test, y_test, batch_size=1))]
     y_pred = [round(i) for i in y_prob]
