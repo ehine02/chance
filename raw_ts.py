@@ -1,14 +1,11 @@
-import keras
 import pandas as pd
 import numpy as np
 import ast
 
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
-from tensorflow.python.keras.layers import CuDNNGRU, Dense
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.optimizer_v2.rmsprop import RMSprop
-import tensorflow as tf
+from keras import Sequential
+from keras.layers import LSTM, Dense, Masking
 
 
 def list_if_not_nan(x):
@@ -25,7 +22,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=100000)
+    e = pd.read_csv('all_events_orig.csv', nrows=50000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -53,12 +50,8 @@ def load_events():
 
 
 def classy():
-    from keras import Sequential
-    from keras.layers import LSTM, Dense, Masking
-    import numpy as np
-
     # Parameters
-    dimensions = ['pass_speed', 'carry_speed', 'pass_angle']#, 'progression_pct', 'to_goal']
+    dimensions = ['pass_speed', 'carry_speed']#, 'pass_angle']#, 'progression_pct', 'to_goal']
 
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
