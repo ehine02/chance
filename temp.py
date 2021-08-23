@@ -4,7 +4,7 @@ import numpy as np
 from statsbombpy import sb
 from attributes import names_v2
 from mplsoccer import Pitch
-from xg_utils import xg_model
+from xg_utils import XgMap
 import tensorflow as tf
 
 
@@ -38,7 +38,7 @@ def plot_events(events):
 
 def main(match_ids='ALL'):
     games = pd.DataFrame()
-    xg = xg_model()
+    xg = XgMap()
     matches = get_matches() if match_ids == 'ALL' else match_ids
     count = 0
     for match in matches:
@@ -70,18 +70,21 @@ def main(match_ids='ALL'):
                     return euclidean_distance(event.location, [120, 40])
 
                 def calc_xg(event):
-                    return xg.predict_proba([[event.location_x, event.location_y]])[0][1]
+                    return xg.value(event.location_x, event.location_y)
 
                 events['carry_length'] = events.apply(func=calc_carry_length, axis=1)
                 events['to_goal'] = events.apply(func=calc_to_goal, axis=1)
-                events['xg'] = events.apply(func=calc_xg, axis=1)
+                try:
+                    events['xg'] = events.apply(func=calc_xg, axis=1)
+                except:
+                    print('Error with events ', events)
                 # frames = label_frames(events)
                 games = pd.concat([games, events])
                 count += events.shape[0]
             except:
                 print('Error, skipping')
-            if count > 1000000:
-                break
+        if count > 500000:
+            break
     games.to_csv('all_events_orig.csv')
     return games
 

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import ast
 
+from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from keras import Sequential
@@ -22,7 +23,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=50000)
+    e = pd.read_csv('all_events_orig.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -51,13 +52,14 @@ def load_events():
 
 def classy():
     # Parameters
-    dimensions = ['pass_speed', 'carry_speed']#, 'pass_angle']#, 'progression_pct', 'to_goal']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']#, 'pass_angle']#, 'progression_pct', 'to_goal']
 
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
     e.pass_height = e.pass_height.str.split().str[0]
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
+    #e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda xg: xg[-1])
     e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
     g = e.groupby(by=['match_id', 'possession'])
     sequences = []
@@ -104,11 +106,37 @@ def classy():
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
     print(model.summary())
-    model.fit(x, y, epochs=10, batch_size=32)
+    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=32)
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
     print(confusion_matrix(y_test, y_pred))
     print(classification_report(y_test, y_pred))
+    history_plot(h, 'accuracy')
     return scores, model, pd.DataFrame({'actual': [i[0] for i in y_test], 'predicted': y_pred, 'prob': y_prob})
+
+
+def history_plot(history, what):
+    x = history.history[what]
+    val_x = history.history['val_' + what]
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = np.asarray(history.epoch) + 1
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, x, 'b', label="Training " + what)
+    plt.plot(epochs, val_x, 'r', label="Validation " + what)
+    plt.grid()
+    plt.title("Training and validation " + what)
+    plt.xlabel("Epochs")
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, loss, 'b', label="Training loss")
+    plt.plot(epochs, val_loss, 'r', label="Validation loss")
+    plt.grid()
+    plt.title("Training and validation " + what)
+    plt.xlabel("Epochs")
+    plt.legend()
+    plt.show()

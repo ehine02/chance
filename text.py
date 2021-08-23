@@ -91,6 +91,10 @@ class EventString(list):
         return ' '.join(self)
 
 
+def delta(x):
+    return x[-1] - x[0]
+
+
 def main():
     text = pd.DataFrame(columns=['text', 'chance'])
     e = load_events()
@@ -123,7 +127,10 @@ def main():
             events_list.add('|')
         match_pos = '_'.join([str(match_id), str(possession)])
         if len(events_list):
-            text = text.append({'match_pos': match_pos, 'text': events_list.to_str(), 'chance': events.chance.any()}, ignore_index=True)
+            text = text.append({'match_pos': match_pos,
+                                'text': events_list.to_str(),
+                                'chance': events.chance.any(),
+                                'delta_xg': delta(events.xg)}, ignore_index=True)
     print('MAX EVENTS:', max_events)
     df = text.copy()
     # Oversampling performed here
