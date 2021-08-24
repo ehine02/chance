@@ -1,3 +1,4 @@
+import keras.optimizers
 import pandas as pd
 import numpy as np
 import ast
@@ -7,6 +8,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from keras import Sequential
 from keras.layers import LSTM, Dense, Masking
+from wame_opt import WAME
 
 
 def list_if_not_nan(x):
@@ -23,7 +25,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=100000)
+    e = pd.read_csv('all_events_orig.csv', nrows=50000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -70,8 +72,8 @@ def classy():
             max_seq = len(events.index)
         events = events.set_index(events['index'])
         events = events.sort_index()
+        events.fillna(value=0.0, inplace=True)
         seq_events = events[dimensions]
-        seq_events.fillna(value=0.0, inplace=True)
         sequences.append(seq_events.values)
         target.append(events.chance.any())
 
@@ -104,9 +106,11 @@ def classy():
     model.add(Masking(mask_value=special_value, input_shape=(max_seq, len(dimensions))))
     model.add(LSTM(16))
     model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy',
+                  optimizer=WAME(learning_rate=0.0001),#keras.optimizers.Adam(learning_rate=0.0001),
+                  metrics=['accuracy'])
     print(model.summary())
-    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=32)
+    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=100, batch_size=32)
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict(x_test)]
