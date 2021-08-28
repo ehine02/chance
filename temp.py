@@ -78,7 +78,7 @@ def main(match_ids='ALL'):
                     events['xg'] = events.apply(func=calc_xg, axis=1)
                 except:
                     print('Error with events ', events)
-                # frames = label_frames(events)
+                frames = label_frames(events)
                 games = pd.concat([games, events])
                 count += events.shape[0]
             except:

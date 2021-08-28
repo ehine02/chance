@@ -8,13 +8,13 @@ from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
-# fix random seed for reproducibility
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from tensorflow.python.keras.layers import Conv1D, MaxPooling1D
 
-
 # numpy.random.seed(7)
+from xg_utils import XgMap
+
 
 def euclidean_distance(start, end):
     return np.sqrt(np.power(end[0] - start[0], 2) + np.power(end[1] - start[1], 2))
@@ -34,7 +34,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=50000)
+    e = pd.read_csv('all_events.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -48,8 +48,8 @@ def load_events():
     e.loc[e.type == 'Carry', 'carry_speed'] = e.carry_length / e.duration
     e.loc[e.type == 'Pass', 'pass_speed'] = e.pass_length / e.duration
     e.loc[e.pass_speed != np.nan, 'pass_speed_text'] = pd.cut(e.pass_speed, bins=[-1, 5, 20, 150],
-                                                              #labels=['tapped', 'solid', 'pinged'])
-                                                              labels = ['tapped', 'solid', 'pinged'])
+                                                              # labels=['tapped', 'solid', 'pinged'])
+                                                              labels=['tapped', 'solid', 'pinged'])
     e.loc[e.carry_speed != np.nan, 'carry_speed_text'] = pd.cut(e.carry_speed, bins=[-1, 2.5, 6, 1500],
                                                                 labels=['drifted', 'glided', 'surged'])
     e.loc[e.location != np.nan, 'to_goal_start'] = \
@@ -58,12 +58,19 @@ def load_events():
         round(np.sqrt((120 - e.pass_end_x) ** 2 + (40 - e.pass_end_y) ** 2), 0)
     e.loc[e.type == 'Carry', 'to_goal_end'] = \
         round(np.sqrt((120 - e.carry_end_x) ** 2 + (40 - e.carry_end_y) ** 2), 0)
-    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100*(e.to_goal_start - e.to_goal_end) / e.to_goal_start, 0)
+    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100 * (e.to_goal_start - e.to_goal_end) / e.to_goal_start,
+                                                              0)
     e.loc[e.progression_pct != np.nan, 'progression_text'] = pd.cut(e.progression_pct, bins=[-1000, 0, 10, 50, 100],
-                                                                    labels=['backwards', 'sideways', 'forwards', 'dangerous'])
+                                                                    labels=['backwards', 'sideways', 'forwards',
+                                                                            'dangerous'])
     e['location_text'] = e.apply(location_to_text, axis=1)
     e['chance'] = ~e['shot_type'].isna()
-    # e.fillna(value=0.0, inplace=True)
+    xg = XgMap()
+
+    def calc_xg(event):
+        return xg.value(event.location_x, event.location_y)
+
+    e['xg'] = e.apply(func=calc_xg, axis=1)
     e = e.drop(columns=['location', 'pass_end_location', 'carry_end_location'])
     return e
 
@@ -95,11 +102,14 @@ def delta(x):
     return x[-1] - x[0]
 
 
-def main():
+def build_text():
     text = pd.DataFrame(columns=['text', 'chance'])
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
     e.pass_height = e.pass_height.str.split().str[0]
+    e.type = e.type.str.lower()
+    e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
+    e = e.loc[~e['type'].isin(['block', 'goal keeper', 'pressure', 'clearance', 'ball receipt*'])]
     g = e.groupby(by=['match_id', 'possession'])
     max_events = 0
     for ((match_id, possession), events) in g:
@@ -107,15 +117,19 @@ def main():
             max_events = len(events.index)
         events = events.set_index(events['index'])
         events = events.sort_index()
+        xg = events.xg.iloc[-1]
         events_list = EventString()
         for _, row in events.iterrows():
             event_type = str(row['type']).lower()
-            if event_type in ['shot', 'block', 'goal keeper', 'pressure', 'clearance']:
+            if event_type == 'shot':
+                xg = row.shot_statsbomb_xg
                 continue
-            #events_list.add(row.location_text)
-            #events_list.add(row.progression_text)
+            #if event_type in ['shot', 'block', 'goal keeper', 'pressure', 'clearance']:
+            #    continue
+            # events_list.add(row.location_text)
+            # events_list.add(row.progression_text)
             if event_type == 'pass':
-                #events_list.add(row.pass_outcome)
+                # events_list.add(row.pass_outcome)
                 events_list.add(row.pass_speed_text)
                 events_list.add(row.pass_height)
                 events_list.add(row.pass_type)
@@ -130,7 +144,9 @@ def main():
             text = text.append({'match_pos': match_pos,
                                 'text': events_list.to_str(),
                                 'chance': events.chance.any(),
-                                'delta_xg': delta(events.xg)}, ignore_index=True)
+                                'xg': xg},
+                               ignore_index=True)
+
     print('MAX EVENTS:', max_events)
     df = text.copy()
     # Oversampling performed here
@@ -138,24 +154,16 @@ def main():
     majority_count = df['chance'].value_counts().max()
     working = [df]
     # group by each salary band
-    for _, salary_band in df.groupby('chance'):
+    for _, chance in df.groupby('chance'):
         # append N samples to working list where N is the difference between majority and this band
-        working.append(salary_band.sample(majority_count - len(salary_band), replace=True))
+        working.append(chance.sample(majority_count - len(chance), replace=True))
     # add the working list contents to the overall dataframe
     df = pd.concat(working)
-    print(df['chance'].value_counts())
-    return df
+    return df, max_events
 
 
-from keras.datasets import imdb
-
-
-def test_imdb():
-    (X_train, y_train), (X_test, y_test) = imdb.load_data(num_words=5000)
-    ed = 0
-
-
-def classy(text):
+def classy():
+    text, max_possession_events = build_text()
     y = text.pop('chance').astype(int)
     t = keras.preprocessing.text.Tokenizer()
     t.fit_on_texts(text.text.tolist())
@@ -164,7 +172,6 @@ def classy(text):
     x_train_encoded = t.texts_to_sequences(x_train.text.tolist())
     x_test_encoded = t.texts_to_sequences(x_test.text.tolist())
     # truncate and pad input sequences
-    max_possession_events = 210
     x_train_encoded = sequence.pad_sequences(x_train_encoded, maxlen=max_possession_events)
     x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
     # create the model
@@ -175,11 +182,13 @@ def classy(text):
     model.add(MaxPooling1D(pool_size=2))
     model.add(LSTM(100))
     model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[keras.metrics.BinaryAccuracy(),
-                                                                         keras.metrics.Precision(),
-                                                                         keras.metrics.Recall(),
-                                                                         keras.metrics.FalsePositives(),
-                                                                         keras.metrics.FalseNegatives()])
+    model.compile(loss='binary_crossentropy',
+                  optimizer='adam',  # WAME(learning_rate=0.0001),
+                  metrics=[keras.metrics.BinaryAccuracy(),
+                           keras.metrics.Precision(),
+                           keras.metrics.Recall(),
+                           keras.metrics.FalsePositives(),
+                           keras.metrics.FalseNegatives()])
     print(model.summary())
     model.fit(x_train_encoded, y_train, epochs=10, batch_size=128)
     # Final evaluation of the model
@@ -191,3 +200,40 @@ def classy(text):
 
     return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
                          'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+
+
+def chancy():
+    text, max_possession_events = build_text()
+    y = text.pop('xg').astype(float)
+    t = keras.preprocessing.text.Tokenizer()
+    t.fit_on_texts(text.text.tolist())
+    print('VOCAB SIZE: ', str(len(t.word_counts)))
+    x_train, x_test, y_train, y_test = train_test_split(text, y, test_size=0.1, random_state=0)
+    x_train_encoded = t.texts_to_sequences(x_train.text.tolist())
+    x_test_encoded = t.texts_to_sequences(x_test.text.tolist())
+    # truncate and pad input sequences
+    x_train_encoded = sequence.pad_sequences(x_train_encoded, maxlen=max_possession_events)
+    x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
+    # create the model
+    embedding_vector_length = 64
+    model = Sequential()
+    model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
+    model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(LSTM(100))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(loss='mse',
+                  optimizer='adam',
+                  metrics=['mean_squared_error'])
+    print(model.summary())
+    model.fit(x_train_encoded, y_train, epochs=10, batch_size=128)
+    # Final evaluation of the model
+    scores = model.evaluate(x_test_encoded, y_test, verbose=True)
+    print("MSE: %.2f%%" % (scores[1] * 100))
+    y_prob = [i[0] for i in model.predict(x_test_encoded)]
+
+    from sklearn.metrics import mean_squared_error, r2_score
+    print('R2 Score:', r2_score(y_test, y_prob))
+
+    return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
+                         'actual': y_test, 'prob': y_prob})

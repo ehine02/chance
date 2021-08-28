@@ -29,7 +29,7 @@ def log_reg(x, target='chance'):
 
 
 def xg_events():
-    e = pd.read_csv('all_events.csv')
+    e = pd.read_csv('all_events_orig_bak.csv')
     e = e.loc[~e['shot_type'].isin([np.nan, 'Penalty'])]
     e = e[['location', 'shot_type', 'shot_outcome']]
     e['location'] = e.location.apply(ast.literal_eval)
@@ -40,15 +40,15 @@ def xg_events():
     return e
 
 
-def xg_model(events=None):
-    return log_reg(events or xg_events(), 'goal')
+def xg_model():
+    return log_reg(xg_events(), 'goal')
 
 
 def xg_map():
     try:
         return pd.read_csv('xg_dist.csv', skiprows=1, names=np.arange(0, 120).tolist(), skip_blank_lines=True)
     except FileNotFoundError:
-        m = xg_model(xg_events())
+        m = xg_model()
         p = pd.DataFrame(np.zeros([80, 120]) * np.nan)
         for y in range(40):
             for x in range(120):

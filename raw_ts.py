@@ -8,6 +8,8 @@ from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
 from keras import Sequential
 from keras.layers import LSTM, Dense, Masking
+from tensorflow.python.keras.layers import Dropout
+
 from wame_opt import WAME
 
 
@@ -25,7 +27,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=50000)
+    e = pd.read_csv('all_events_orig.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -44,8 +46,11 @@ def load_events():
         round(np.sqrt((120 - e.pass_end_x) ** 2 + (40 - e.pass_end_y) ** 2), 0)
     e.loc[e.type == 'Carry', 'to_goal_end'] = \
         round(np.sqrt((120 - e.carry_end_x) ** 2 + (40 - e.carry_end_y) ** 2), 0)
-    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100 * (e.to_goal_start - e.to_goal_end) / e.to_goal_start,
-                                                              0)
+    e.loc[e.to_goal_end != np.nan, 'progression_pct'] = round(100 * (e.to_goal_start - e.to_goal_end) /
+                                                              e.to_goal_start, 0)
+    e['delta_y'] = e.location_y.diff()
+    e['delta_x'] = e.location_x.diff()
+
     e['chance'] = ~e['shot_type'].isna()
     # e.fillna(value=0.0, inplace=True)
     e = e.drop(columns=['location', 'pass_end_location', 'carry_end_location'])
@@ -54,14 +59,20 @@ def load_events():
 
 def classy():
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']#, 'pass_angle']#, 'progression_pct', 'to_goal']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'location_x', 'location_y']
+    #, 'pass_angle']#, 'progression_pct', 'to_goal']
+
+    #patterns
+
+    #bool switch - y goes from >60 to <20 in one pass or vice versa
+    #bool width - y goes from >30 and < 50 to >70 or < 10 in one getpass
+    #bool layoff - long to centre and then short
 
     e = load_events()
     e = e.loc[~e['type'].isin(['Ball Receipt*'])]
     e.pass_height = e.pass_height.str.split().str[0]
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-    #e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda xg: xg[-1])
     e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
     g = e.groupby(by=['match_id', 'possession'])
     sequences = []
@@ -100,17 +111,22 @@ def classy():
         seq_len = x.shape[0]
         x_pad[s, 0:seq_len, :] = x
 
-    x, x_test, y, y_test = train_test_split(x_pad, y, test_size=0.1, random_state=0)
+    x, x_test, y, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
 
     model = Sequential()
     model.add(Masking(mask_value=special_value, input_shape=(max_seq, len(dimensions))))
-    model.add(LSTM(16))
+    model.add(LSTM(32))
+    model.add(Dropout(0.2))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer=WAME(learning_rate=0.0001),#keras.optimizers.Adam(learning_rate=0.0001),
-                  metrics=['accuracy'])
+                  metrics=['accuracy',
+                           keras.metrics.Precision(),
+                           keras.metrics.Recall(),
+                           keras.metrics.FalsePositives(),
+                           keras.metrics.FalseNegatives()])
     print(model.summary())
-    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=100, batch_size=32)
+    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=100, batch_size=64)
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict(x_test)]
@@ -128,19 +144,19 @@ def history_plot(history, what):
     val_loss = history.history['val_loss']
     epochs = np.asarray(history.epoch) + 1
 
-    plt.subplot(1, 2, 1)
+    #plt.subplot(1, 2, 1)
     plt.plot(epochs, x, 'b', label="Training " + what)
-    plt.plot(epochs, val_x, 'r', label="Validation " + what)
+    plt.plot(epochs, val_x, 'g', label="Validation " + what)
     plt.grid()
     plt.title("Training and validation " + what)
     plt.xlabel("Epochs")
     plt.legend()
 
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs, loss, 'b', label="Training loss")
-    plt.plot(epochs, val_loss, 'r', label="Validation loss")
-    plt.grid()
-    plt.title("Training and validation " + what)
-    plt.xlabel("Epochs")
-    plt.legend()
-    plt.show()
+    # plt.subplot(1, 2, 2)
+    # plt.plot(epochs, loss, 'b', label="Training loss")
+    # plt.plot(epochs, val_loss, 'r', label="Validation loss")
+    # plt.grid()
+    # plt.title("Training and validation " + what)
+    # plt.xlabel("Epochs")
+    # plt.legend()
+    # plt.show()
