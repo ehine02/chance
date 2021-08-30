@@ -59,6 +59,7 @@ def xg_map():
         return p
 
 
+# Xg Map cache helper utility
 class XgMap(object):
     def __init__(self):
         self.xg_map = xg_map()

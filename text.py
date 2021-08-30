@@ -1,8 +1,11 @@
+import io
+
 import keras.preprocessing.text
 import pandas as pd
 import numpy as np
 import ast
 
+import tensorflow
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
@@ -10,7 +13,7 @@ from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
-from tensorflow.python.keras.layers import Conv1D, MaxPooling1D
+from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, TextVectorization, Dropout
 
 # numpy.random.seed(7)
 from xg_utils import XgMap
@@ -110,6 +113,7 @@ def build_text():
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
     e = e.loc[~e['type'].isin(['block', 'goal keeper', 'pressure', 'clearance', 'ball receipt*'])]
+    e.type = e.type.str.replace(' ', '')
     g = e.groupby(by=['match_id', 'possession'])
     max_events = 0
     for ((match_id, possession), events) in g:
@@ -118,31 +122,29 @@ def build_text():
         events = events.set_index(events['index'])
         events = events.sort_index()
         xg = events.xg.iloc[-1]
-        events_list = EventString()
-        for _, row in events.iterrows():
-            event_type = str(row['type']).lower()
+        commentary = EventString()
+        for _, event in events.iterrows():
+            event_type = str(event['type']).lower()
             if event_type == 'shot':
-                xg = row.shot_statsbomb_xg
+                xg = event.shot_statsbomb_xg
                 continue
-            #if event_type in ['shot', 'block', 'goal keeper', 'pressure', 'clearance']:
-            #    continue
-            # events_list.add(row.location_text)
-            # events_list.add(row.progression_text)
+            #commentary.add(event.location_text)
+            #commentary.add(event.progression_text)
             if event_type == 'pass':
-                # events_list.add(row.pass_outcome)
-                events_list.add(row.pass_speed_text)
-                events_list.add(row.pass_height)
-                events_list.add(row.pass_type)
+                # commentary.add(event.pass_outcome)
+                commentary.add(event.pass_speed_text)
+                commentary.add(event.pass_height)
+                commentary.add(event.pass_type)
             if event_type == 'carry':
-                events_list.add(row.carry_speed_text)
-            if row.under_pressure == True:
-                events_list.add('pressured')
-            events_list.add(event_type)
-            events_list.add('|')
+                commentary.add(event.carry_speed_text)
+            if event.under_pressure == True:
+                commentary.add('pressured')
+            commentary.add(event_type)
+            commentary.add('|')
         match_pos = '_'.join([str(match_id), str(possession)])
-        if len(events_list):
+        if len(commentary):
             text = text.append({'match_pos': match_pos,
-                                'text': events_list.to_str(),
+                                'text': commentary.to_str(),
                                 'chance': events.chance.any(),
                                 'xg': xg},
                                ignore_index=True)
@@ -176,14 +178,17 @@ def classy():
     x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
     # create the model
     embedding_vector_length = 64
+
     model = Sequential()
-    model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
+    embedding_layer = Embedding(max_possession_events, embedding_vector_length, input_length=max_possession_events)
+    model.add(embedding_layer)
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
-    model.add(MaxPooling1D(pool_size=2))
+    #model.add(MaxPooling1D(pool_size=2))
     model.add(LSTM(100))
+    model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
-                  optimizer='adam',  # WAME(learning_rate=0.0001),
+                  optimizer='adam',
                   metrics=[keras.metrics.BinaryAccuracy(),
                            keras.metrics.Precision(),
                            keras.metrics.Recall(),
@@ -197,6 +202,20 @@ def classy():
     y_prob = [i[0] for i in model.predict(x_test_encoded)]
     y_pred = [round(i) for i in y_prob]
     print(confusion_matrix(y_test, y_pred))
+
+    weights = embedding_layer.get_weights()[0]
+    vocab = t.index_word.values()
+    out_v = io.open('vectors.tsv', 'w', encoding='utf-8')
+    out_m = io.open('metadata.tsv', 'w', encoding='utf-8')
+
+    for index, word in enumerate(vocab):
+        if index == 0:
+            continue  # skip 0, it's padding.
+        vec = weights[index]
+        out_v.write('\t'.join([str(x) for x in vec]) + "\n")
+        out_m.write(word + "\n")
+    out_v.close()
+    out_m.close()
 
     return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
                          'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
@@ -215,7 +234,7 @@ def chancy():
     x_train_encoded = sequence.pad_sequences(x_train_encoded, maxlen=max_possession_events)
     x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
     # create the model
-    embedding_vector_length = 64
+    embedding_vector_length = 32
     model = Sequential()
     model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
@@ -237,3 +256,7 @@ def chancy():
 
     return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
                          'actual': y_test, 'prob': y_prob})
+
+
+def label_word(word):
+    pass

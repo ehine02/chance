@@ -144,7 +144,6 @@ def history_plot(history, what):
     val_loss = history.history['val_loss']
     epochs = np.asarray(history.epoch) + 1
 
-    #plt.subplot(1, 2, 1)
     plt.plot(epochs, x, 'b', label="Training " + what)
     plt.plot(epochs, val_x, 'g', label="Validation " + what)
     plt.grid()

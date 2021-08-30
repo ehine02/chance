@@ -1,11 +1,9 @@
-import datetime
 import pandas as pd
 import numpy as np
 from statsbombpy import sb
 from attributes import names_v2
 from mplsoccer import Pitch
 from xg_utils import XgMap
-import tensorflow as tf
 
 
 def euclidean_distance(start, end):
@@ -128,7 +126,6 @@ def label_frames(events):
         if frame['chance'][-1] == 1:
             ed = 0
         frame['chance_seq'] = frame['chance'][-1] == 1
-        # pd.concat([frames, frame])
         frames.append(frame)
     return frames
 
