@@ -108,11 +108,14 @@ def delta(x):
 def build_text():
     text = pd.DataFrame(columns=['text', 'chance'])
     e = load_events()
-    e = e.loc[~e['type'].isin(['Ball Receipt*'])]
-    e.pass_height = e.pass_height.str.split().str[0]
+    #e = e.loc[~e['type'].isin(['Ball Receipt*'])]
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-    e = e.loc[~e['type'].isin(['block', 'goal keeper', 'pressure', 'clearance', 'ball receipt*'])]
+    #e = e.loc[~e['type'].isin(['block', 'goal keeper', 'pressure', 'clearance', 'ball receipt*'])]
+    e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble', 'dribbled past'])]
+    e.pass_height = e.pass_height.str.split().str[0]
+    e.pass_type = e.pass_type.str.replace(' ', '')
+    e.pass_type = e.pass_type.str.replace('-', '')
     e.type = e.type.str.replace(' ', '')
     g = e.groupby(by=['match_id', 'possession'])
     max_events = 0
@@ -209,8 +212,6 @@ def classy():
     out_m = io.open('metadata.tsv', 'w', encoding='utf-8')
 
     for index, word in enumerate(vocab):
-        if index == 0:
-            continue  # skip 0, it's padding.
         vec = weights[index]
         out_v.write('\t'.join([str(x) for x in vec]) + "\n")
         out_m.write(word + "\n")
