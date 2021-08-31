@@ -10,6 +10,7 @@ from keras import Sequential
 from keras.layers import LSTM, Dense, Masking
 from tensorflow.python.keras.layers import Dropout
 
+from viz import history_plot
 from wame_opt import WAME
 
 
@@ -27,7 +28,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig.csv', nrows=100000)
+    e = pd.read_csv('all_events_orig_bak.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -59,7 +60,7 @@ def load_events():
 
 def classy():
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'location_x', 'location_y']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']#, 'location_x', 'location_y']
     #, 'pass_angle']#, 'progression_pct', 'to_goal']
 
     #patterns
@@ -69,11 +70,11 @@ def classy():
     #bool layoff - long to centre and then short
 
     e = load_events()
-    e = e.loc[~e['type'].isin(['Ball Receipt*'])]
-    e.pass_height = e.pass_height.str.split().str[0]
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-    e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
+    #e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
+    e = e.loc[e['type'].isin(['pass', 'carry', 'dribble', 'dribbled past'])]
+    e.pass_height = e.pass_height.str.split().str[0]
     g = e.groupby(by=['match_id', 'possession'])
     sequences = []
     target = []
@@ -100,6 +101,8 @@ def classy():
     # add the working list contents to the overall dataframe
     df = pd.concat(working)
 
+    print(df.chance.value_counts())
+
     x = np.array(df.seqs.to_list())
     y = np.array([[int(t)] for t in df.chance.to_list()])
     print(x.shape)
@@ -112,11 +115,12 @@ def classy():
         x_pad[s, 0:seq_len, :] = x
 
     x, x_test, y, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    x, x_val, y, y_val = train_test_split(x, y, test_size=0.1, random_state=0)
 
     model = Sequential()
     model.add(Masking(mask_value=special_value, input_shape=(max_seq, len(dimensions))))
-    model.add(LSTM(32))
-    model.add(Dropout(0.2))
+    model.add(LSTM(64))
+    model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer=WAME(learning_rate=0.0001),#keras.optimizers.Adam(learning_rate=0.0001),
@@ -126,7 +130,7 @@ def classy():
                            keras.metrics.FalsePositives(),
                            keras.metrics.FalseNegatives()])
     print(model.summary())
-    h = model.fit(x, y, validation_data=(x_test, y_test), epochs=100, batch_size=64)
+    h = model.fit(x, y, validation_data=(x_val, y_val), epochs=10, batch_size=64)
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict(x_test)]
@@ -136,26 +140,3 @@ def classy():
     history_plot(h, 'accuracy')
     return scores, model, pd.DataFrame({'actual': [i[0] for i in y_test], 'predicted': y_pred, 'prob': y_prob})
 
-
-def history_plot(history, what):
-    x = history.history[what]
-    val_x = history.history['val_' + what]
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-    epochs = np.asarray(history.epoch) + 1
-
-    plt.plot(epochs, x, 'b', label="Training " + what)
-    plt.plot(epochs, val_x, 'g', label="Validation " + what)
-    plt.grid()
-    plt.title("Training and validation " + what)
-    plt.xlabel("Epochs")
-    plt.legend()
-
-    # plt.subplot(1, 2, 2)
-    # plt.plot(epochs, loss, 'b', label="Training loss")
-    # plt.plot(epochs, val_loss, 'r', label="Validation loss")
-    # plt.grid()
-    # plt.title("Training and validation " + what)
-    # plt.xlabel("Epochs")
-    # plt.legend()
-    # plt.show()

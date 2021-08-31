@@ -108,7 +108,6 @@ def delta(x):
 def build_text():
     text = pd.DataFrame(columns=['text', 'chance'])
     e = load_events()
-    #e = e.loc[~e['type'].isin(['Ball Receipt*'])]
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
     #e = e.loc[~e['type'].isin(['block', 'goal keeper', 'pressure', 'clearance', 'ball receipt*'])]
