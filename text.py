@@ -1,21 +1,20 @@
 import io
-
+import ast
 import keras.preprocessing.text
+
 import pandas as pd
 import numpy as np
-import ast
 
-import tensorflow
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers.embeddings import Embedding
 from keras.preprocessing import sequence
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, r2_score
 from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, TextVectorization, Dropout
 
-# numpy.random.seed(7)
+from viz import history_plot
 from xg_utils import XgMap
 
 
@@ -172,12 +171,11 @@ def classy():
     t = keras.preprocessing.text.Tokenizer()
     t.fit_on_texts(text.text.tolist())
     print('VOCAB SIZE: ', str(len(t.word_counts)))
-    x_train, x_test, y_train, y_test = train_test_split(text, y, test_size=0.1, random_state=0)
-    x_train_encoded = t.texts_to_sequences(x_train.text.tolist())
-    x_test_encoded = t.texts_to_sequences(x_test.text.tolist())
-    # truncate and pad input sequences
-    x_train_encoded = sequence.pad_sequences(x_train_encoded, maxlen=max_possession_events)
-    x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
+    x = t.texts_to_sequences(text.text.tolist())
+    x_pad = sequence.pad_sequences(x, maxlen=max_possession_events)
+    x_train, x_test, y_train, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
+
     # create the model
     embedding_vector_length = 64
 
@@ -185,23 +183,24 @@ def classy():
     embedding_layer = Embedding(max_possession_events, embedding_vector_length, input_length=max_possession_events)
     model.add(embedding_layer)
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
-    #model.add(MaxPooling1D(pool_size=2))
-    model.add(LSTM(100))
+    model.add(MaxPooling1D(pool_size=2))
+    model.add(LSTM(64))
     model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer='adam',
-                  metrics=[keras.metrics.BinaryAccuracy(),
+                  metrics=['accuracy',
                            keras.metrics.Precision(),
                            keras.metrics.Recall(),
                            keras.metrics.FalsePositives(),
                            keras.metrics.FalseNegatives()])
     print(model.summary())
-    model.fit(x_train_encoded, y_train, epochs=10, batch_size=128)
+
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=128)
     # Final evaluation of the model
-    scores = model.evaluate(x_test_encoded, y_test, verbose=True)
+    scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
-    y_prob = [i[0] for i in model.predict(x_test_encoded)]
+    y_prob = [i[0] for i in model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
     print(confusion_matrix(y_test, y_pred))
 
@@ -216,9 +215,8 @@ def classy():
         out_m.write(word + "\n")
     out_v.close()
     out_m.close()
-
-    return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
-                         'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+    history_plot(h, 'accuracy')
+    return pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
 
 
 def chancy():
@@ -227,14 +225,14 @@ def chancy():
     t = keras.preprocessing.text.Tokenizer()
     t.fit_on_texts(text.text.tolist())
     print('VOCAB SIZE: ', str(len(t.word_counts)))
-    x_train, x_test, y_train, y_test = train_test_split(text, y, test_size=0.1, random_state=0)
-    x_train_encoded = t.texts_to_sequences(x_train.text.tolist())
-    x_test_encoded = t.texts_to_sequences(x_test.text.tolist())
-    # truncate and pad input sequences
-    x_train_encoded = sequence.pad_sequences(x_train_encoded, maxlen=max_possession_events)
-    x_test_encoded = sequence.pad_sequences(x_test_encoded, maxlen=max_possession_events)
+    x = t.texts_to_sequences(text.text.tolist())
+    x_pad = sequence.pad_sequences(x, maxlen=max_possession_events)
+    x_train, x_test, y_train, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
+
     # create the model
     embedding_vector_length = 32
+
     model = Sequential()
     model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
@@ -245,17 +243,16 @@ def chancy():
                   optimizer='adam',
                   metrics=['mean_squared_error'])
     print(model.summary())
-    model.fit(x_train_encoded, y_train, epochs=10, batch_size=128)
+
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=100, batch_size=128)
     # Final evaluation of the model
-    scores = model.evaluate(x_test_encoded, y_test, verbose=True)
-    print("MSE: %.2f%%" % (scores[1] * 100))
-    y_prob = [i[0] for i in model.predict(x_test_encoded)]
+    scores = model.evaluate(x_test, y_test, verbose=True)
+    print("MSE: %.2f%%" % scores[1])
+    y_prob = [i[0] for i in model.predict(x_test)]
 
-    from sklearn.metrics import mean_squared_error, r2_score
     print('R2 Score:', r2_score(y_test, y_prob))
-
-    return pd.DataFrame({'id': x_test.match_pos, 'seq': x_test.text,
-                         'actual': y_test, 'prob': y_prob})
+    history_plot(h, 'mean_squared_error')
+    return pd.DataFrame({'actual': y_test, 'prob': y_prob})
 
 
 def label_word(word):

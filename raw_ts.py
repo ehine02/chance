@@ -60,7 +60,7 @@ def load_events():
 
 def classy():
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']#, 'location_x', 'location_y']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'delta_y']
     #, 'pass_angle']#, 'progression_pct', 'to_goal']
 
     #patterns
@@ -114,8 +114,8 @@ def classy():
         seq_len = x.shape[0]
         x_pad[s, 0:seq_len, :] = x
 
-    x, x_test, y, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
-    x, x_val, y, y_val = train_test_split(x, y, test_size=0.1, random_state=0)
+    x_train, x_test, y_train, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
 
     model = Sequential()
     model.add(Masking(mask_value=special_value, input_shape=(max_seq, len(dimensions))))
@@ -130,7 +130,8 @@ def classy():
                            keras.metrics.FalsePositives(),
                            keras.metrics.FalseNegatives()])
     print(model.summary())
-    h = model.fit(x, y, validation_data=(x_val, y_val), epochs=10, batch_size=64)
+
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=64)
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
     y_prob = [i[0] for i in model.predict(x_test)]
