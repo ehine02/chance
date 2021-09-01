@@ -1,4 +1,4 @@
-import keras.optimizers
+import tensorflow.python.keras.optimizers
 import pandas as pd
 import numpy as np
 import ast
@@ -6,8 +6,10 @@ import ast
 from matplotlib import pyplot as plt
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.model_selection import train_test_split
-from keras import Sequential
-from keras.layers import LSTM, Dense, Masking
+from sklearn.preprocessing import StandardScaler
+from tensorflow import keras
+from tensorflow.python.keras import Sequential
+from tensorflow.python.keras.layers import LSTM, Dense, Masking
 from tensorflow.python.keras.layers import Dropout
 
 from viz import history_plot
@@ -28,7 +30,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events_orig_bak.csv', nrows=100000)
+    e = pd.read_csv('all_events.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -60,7 +62,7 @@ def load_events():
 
 def classy():
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'delta_y']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'progression_pct']
     #, 'pass_angle']#, 'progression_pct', 'to_goal']
 
     #patterns
