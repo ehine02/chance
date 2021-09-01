@@ -36,7 +36,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=100000)
+    e = pd.read_csv('all_events.csv', nrows=1000000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -196,7 +196,7 @@ def classy():
                            keras.metrics.FalseNegatives()])
     print(model.summary())
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=128)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1000, batch_size=1024)
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
@@ -237,14 +237,15 @@ def chancy():
     model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
     model.add(MaxPooling1D(pool_size=2))
-    model.add(LSTM(100))
+    model.add(LSTM(64)) #32
+    model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='mse',
                   optimizer='adam',
                   metrics=['mean_squared_error'])
     print(model.summary())
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=100, batch_size=128)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1000, batch_size=128)
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("MSE: %.2f%%" % scores[1])

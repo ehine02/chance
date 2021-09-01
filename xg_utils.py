@@ -29,7 +29,7 @@ def log_reg(x, target='chance'):
 
 
 def xg_events():
-    e = pd.read_csv('all_events_orig_bak.csv')
+    e = pd.read_csv('all_events_orig.csv')
     e = e.loc[~e['shot_type'].isin([np.nan, 'Penalty'])]
     e = e[['location', 'shot_type', 'shot_outcome']]
     e['location'] = e.location.apply(ast.literal_eval)
