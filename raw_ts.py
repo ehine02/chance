@@ -8,7 +8,7 @@ from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.layers import LSTM, Dense, Masking
 from tensorflow.python.keras.layers import Dropout
 
-from utils import list_if_not_nan, split_location
+from utils import list_if_not_nan, split_location, perform_oversampling
 from viz import plot_history
 from wame_opt import WAME
 from xg_utils import XgMap
@@ -51,18 +51,9 @@ def load_events():
     return e
 
 
-def build_numseq():
+def build_numeric_sequences():
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'location_x']#, 'progression_pct']
-    # , 'pass_angle']#, 'progression_pct', 'to_goal']
-
-    # patterns
-
-    # bool switch - y goes from >60 to <20 in one pass or vice versa
-    # bool width - y goes from >30 and < 50 to >70 or < 10 in one getpass
-    # bool layoff - long to centre and then short
-
-
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']
 
     e = load_events()
     e.type = e.type.str.lower()
@@ -91,24 +82,15 @@ def build_numseq():
         target_chance.append(events.chance.any())
         target_xg.append(events.xg.iloc[-1])
 
-    df = pd.DataFrame({'seqs': sequences, 'chance': target_chance, 'xg': target_xg})
-    # Oversampling performed here
-    # first count the records of the majority
-    majority_count = df.chance.value_counts().max()
-    working = [df]
-    # group by each salary band
-    for _, chance in df.groupby('chance'):
-        # append N samples to working list where N is the difference between majority and this band
-        working.append(chance.sample(majority_count - len(chance), replace=True))
-    # add the working list contents to the overall dataframe
-    df = pd.concat(working)
-
-    print(df.chance.value_counts())
-    return df, max_seq
+    seq_df = perform_oversampling(pd.DataFrame({'seqs': sequences,
+                                                'chance': target_chance,
+                                                'xg': target_xg}))
+    print(seq_df.chance.value_counts())
+    return seq_df, max_seq
 
 
 def classy():
-    df, longest_seq = build_numseq()
+    df, longest_seq = build_numeric_sequences()
 
     x = np.array(df.seqs.to_list())
     y = np.array([[int(t)] for t in df.chance.to_list()])
@@ -153,7 +135,7 @@ def classy():
 
 
 def chancy():
-    df, longest_seq = build_numseq()
+    df, longest_seq = build_numeric_sequences()
 
     x = np.array(df.seqs.to_list())
     y = np.array([[t] for t in df.xg.to_list()])

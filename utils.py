@@ -1,6 +1,22 @@
 import ast
 
 import numpy as np
+import pandas as pd
+
+
+def perform_oversampling(unbalanced, target='chance'):
+    data = unbalanced.copy()
+    # Oversampling performed here
+    # first count the records of the majority
+    majority_count = data[target].value_counts().max()
+    working = [data]
+    # group by the target
+    for _, grouped in data.groupby(target):
+        # append N samples to working list where N is the difference between majority and this band
+        working.append(grouped.sample(majority_count - len(grouped), replace=True))
+    # add the working list contents to the overall dataframe
+    balanced = pd.concat(working)
+    return balanced
 
 
 def euclidean_distance(start, end):

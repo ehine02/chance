@@ -15,7 +15,7 @@ from tensorflow.python.keras.layers import Conv1D, MaxPooling1D, Dropout
 
 from viz import plot_history
 from xg_utils import XgMap
-from utils import list_if_not_nan, split_location, location_to_text
+from utils import list_if_not_nan, split_location, location_to_text, perform_oversampling
 
 
 def load_events():
@@ -115,18 +115,10 @@ def build_text():
                                ignore_index=True)
 
     print('MAX EVENTS:', max_events)
-    df = text.copy()
-    # Oversampling performed here
-    # first count the records of the majority
-    majority_count = df['chance'].value_counts().max()
-    working = [df]
-    # group by each salary band
-    for _, chance in df.groupby('chance'):
-        # append N samples to working list where N is the difference between majority and this band
-        working.append(chance.sample(majority_count - len(chance), replace=True))
-    # add the working list contents to the overall dataframe
-    df = pd.concat(working)
-    return df, max_events
+
+    seq_df = perform_oversampling(text)
+    print(seq_df.chance.value_counts())
+    return seq_df, max_events
 
 
 def classy():
