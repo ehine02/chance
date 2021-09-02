@@ -54,9 +54,6 @@ def draw_pitch():
     return pitch
 
 
-import cv2
-
-
 def main():
     e = load_events()
     e = e.loc[e['type'].isin(['Pass', 'Carry'])]

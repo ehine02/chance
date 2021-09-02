@@ -3,6 +3,8 @@ import math
 
 import pandas as pd
 import numpy as np
+from matplotlib import pyplot as plt
+from mplsoccer import Pitch
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
@@ -68,3 +70,41 @@ class XgMap(object):
         x = min(x, 119.99)
         y = min(y, 79.99)
         return self.xg_map[math.floor(x)][math.floor(y)]
+
+    def pretty(self):
+        pitch = Pitch(figsize=(16, 8), tight_layout=False, goal_type='box', pitch_color='green', line_color='white')
+        fig, ax = pitch.draw()
+        plt.pcolor(self.xg_map)
+        plt.yticks(np.arange(0.5, len(self.xg_map.index), 1), self.xg_map.index)
+        plt.xticks(np.arange(0.5, len(self.xg_map.columns), 1), self.xg_map.columns)
+        plt.show()
+
+    def pretty2(self):
+        pitch = Pitch(line_zorder=2, pitch_color='black')
+        fig, ax = pitch.draw()
+        x = np.random.uniform(low=0, high=120, size=100)
+        y = np.random.uniform(low=0, high=80, size=100)
+        stats = pitch.bin_statistic(x, y)
+        pitch.heatmap(stats, edgecolors='black', cmap='hot', ax=ax)
+
+
+def pretty3():
+    import matplotlib.patheffects as path_effects
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    from matplotlib.colors import LinearSegmentedColormap
+    from scipy.ndimage import gaussian_filter
+
+    from mplsoccer import Pitch, VerticalPitch, FontManager
+    from mplsoccer.statsbomb import read_event, EVENT_SLUG
+
+    # get data
+    match_files = ['19789.json', '19794.json', '19805.json']
+    kwargs = {'related_event_df': False, 'shot_freeze_frame_df': False,
+              'tactics_lineup_df': False, 'warn': False}
+    df = pd.concat([read_event(f'{EVENT_SLUG}/{file}', **kwargs)['event'] for file in match_files])
+    # filter chelsea pressure events
+    mask_chelsea_pressure = (df.team_name == 'Chelsea FCW') & (df.type_name == 'Pressure')
+    df = df.loc[mask_chelsea_pressure, ['x', 'y']]
+    ed = 0

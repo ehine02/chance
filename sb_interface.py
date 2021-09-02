@@ -1,13 +1,9 @@
 import pandas as pd
 import numpy as np
+
 from statsbombpy import sb
-from attributes import names_v2
-from mplsoccer import Pitch
+from utils import euclidean_distance, names_v2
 from xg_utils import XgMap
-
-
-def euclidean_distance(start, end):
-    return np.sqrt(np.power(end[0] - start[0], 2) + np.power(end[1] - start[1], 2))
 
 
 def get_matches():
@@ -21,20 +17,7 @@ def get_matches():
     return matches
 
 
-def csv_events(match_id):
-    sb.events(match_id=match_id).to_csv(str(match_id) + '_raw.csv')
-
-
-def plot_events(events):
-    pitch = Pitch(pitch_type='statsbomb', pitch_color='#aabb97', line_color='white',
-                  stripe_color='#c2d59d', stripe=True, axis=True, label=True, tick=True)  # optional stripes
-    fig, ax = pitch.draw()
-    events = events[events['chance'] == 1]
-    for _, event in events.iterrows():
-        ax.plot(event.location_x, event.location_y)
-
-
-def main(match_ids='ALL'):
+def store_events(match_ids='ALL', str_file_name='all_events.csv'):
     games = pd.DataFrame()
     xg = XgMap()
     matches = get_matches() if match_ids == 'ALL' else match_ids
@@ -72,68 +55,13 @@ def main(match_ids='ALL'):
 
                 events['carry_length'] = events.apply(func=calc_carry_length, axis=1)
                 events['to_goal'] = events.apply(func=calc_to_goal, axis=1)
-                try:
-                    events['xg'] = events.apply(func=calc_xg, axis=1)
-                except:
-                    print('Error with events ', events)
-                frames = label_frames(events)
+                events['xg'] = events.apply(func=calc_xg, axis=1)
                 games = pd.concat([games, events])
                 count += events.shape[0]
             except:
                 print('Error, skipping')
-        if count > 500000:
-            break
-    games.to_csv('all_events_orig.csv')
+            print(f'Processed {count} events...')
+        print(f'Processed match id {match}')
+    print(f'Saving data to {str_file_name}')
+    games.to_csv(str_file_name)
     return games
-
-
-def aggregate_events(events):
-    def count_unique(x):
-        return len(set(x))
-
-    def changed(x):
-        return count_unique(x) > 1
-
-    def ends_in_chance(x):
-        return x[-1] == 1
-
-    frames = events.rolling('20S').agg({  # 'pass_length': np.var,
-        'period': lambda x: x[-1],
-        'pass_length': np.sum,
-        'location_x': np.var,
-        'location_y': np.var,
-        'duration': np.sum,
-        'chance': ends_in_chance,
-        'index': lambda x: len(x),
-        'carry_length': np.sum,
-        'possession': count_unique
-        # 'pass_angle': np.max,
-        # 'index': np.count_nonzero,
-
-    })
-
-    frames['speed'] = (frames['pass_length'] + frames['carry_length']) / frames['duration']
-    frames.replace([np.inf, -np.inf], np.nan, inplace=True)
-    frames = frames.fillna(0.0)
-    return frames
-
-
-def label_frames(events):
-    frames = []
-    events = events[events['chance'] == 1]
-    events = events[['to_goal', 'duration', 'chance']]
-    for frame in events.rolling('30S'):
-        if frame['chance'][-1] == 1:
-            ed = 0
-        frame['chance_seq'] = frame['chance'][-1] == 1
-        frames.append(frame)
-    return frames
-
-
-
-
-
-
-
-
-
