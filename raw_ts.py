@@ -142,13 +142,16 @@ def classy():
                   batch_size=1024)
 
     scores = model.evaluate(x_test, y_test, verbose=True)
-    print("Accuracy: %.2f%%" % (scores[1] * 100))
+    print(f'Accuracy: {round(scores[1]*100, 1)}%')
+
     y_prob = [i[0] for i in model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
     print(confusion_matrix(y_test, y_pred))
     print(classification_report(y_test, y_pred))
+
     plot_history(h, 'accuracy')
-    return scores, model, pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+
+    return pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
 
 
 def chancy():
@@ -167,12 +170,14 @@ def chancy():
                   y_train,
                   validation_data=(x_val, y_val),
                   epochs=10,
-                  batch_size=2048)
+                  batch_size=1024)
 
     scores = model.evaluate(x_test, y_test, verbose=True)
-    print("MSE: %.2f%%" % scores[1])
-    y_prob = [i[0] for i in model.predict(x_test)]
+    print(f'MSE: {round(scores[1])}')
 
-    print('R2 Score:', r2_score(y_test, y_prob))
+    y_prob = [i[0] for i in model.predict(x_test)]
+    print(f'R2 Score: {r2_score(y_test, y_prob)}')
+
     plot_history(h, 'mean_squared_error')
+
     return pd.DataFrame({'actual': y_test, 'prob': y_prob})
