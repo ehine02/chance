@@ -3,7 +3,6 @@ import numpy as np
 
 from sklearn.metrics import confusion_matrix, classification_report, r2_score
 from sklearn.model_selection import train_test_split
-from tensorflow import keras
 from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.layers import LSTM, Dense, Masking
 from tensorflow.python.keras.layers import Dropout
@@ -138,7 +137,7 @@ def classy():
     h = model.fit(x_train,
                   y_train,
                   validation_data=(x_val, y_val),
-                  epochs=10,
+                  epochs=500,
                   batch_size=1024)
 
     scores = model.evaluate(x_test, y_test, verbose=True)
@@ -169,7 +168,7 @@ def chancy():
     h = model.fit(x_train,
                   y_train,
                   validation_data=(x_val, y_val),
-                  epochs=10,
+                  epochs=500,
                   batch_size=1024)
 
     scores = model.evaluate(x_test, y_test, verbose=True)

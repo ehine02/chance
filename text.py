@@ -70,8 +70,8 @@ class EventString(list):
         return ' '.join(self)
 
 
-def build_text():
-    text = pd.DataFrame(columns=['text', 'chance'])
+def build_text_sequences(target):
+    text = pd.DataFrame()
     e = load_events()
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
@@ -84,10 +84,7 @@ def build_text():
     e.pass_type = e.pass_type.str.replace('-', '')
     e.type = e.type.str.replace(' ', '')
     g = e.groupby(by=['match_id', 'possession'])
-    max_events = 0
     for ((match_id, possession), events) in g:
-        if len(events.index) > max_events:
-            max_events = len(events.index)
         events = events.set_index(events['index'])
         events = events.sort_index()
         commentary = EventString()
@@ -114,29 +111,25 @@ def build_text():
                                 'xg': events.xg.iloc[-1]},
                                ignore_index=True)
 
-    print('MAX EVENTS:', max_events)
-
     seq_df = perform_oversampling(text)
     print(seq_df.chance.value_counts())
-    return seq_df, max_events
+    return seq_df.text, seq_df[target], g.index.count().max()
 
 
 def classy():
-    text, max_possession_events = build_text()
-    y = text.pop('chance').astype(int)
+    sequences, targets, longest_sequence = build_text_sequences(target='chance')
     t = keras.preprocessing.text.Tokenizer()
-    t.fit_on_texts(text.text.tolist())
-    print('VOCAB SIZE: ', str(len(t.word_counts)))
-    x = t.texts_to_sequences(text.text.tolist())
-    x_pad = sequence.pad_sequences(x, maxlen=max_possession_events)
-    x_train, x_test, y_train, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    t.fit_on_texts(sequences)
+    sequences_padded = sequence.pad_sequences(t.texts_to_sequences(sequences), maxlen=longest_sequence)
+
+    x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
 
     # create the model
-    embedding_vector_length = 64
+    embedding_vector_length = 32
 
     model = Sequential()
-    embedding_layer = Embedding(max_possession_events, embedding_vector_length, input_length=max_possession_events)
+    embedding_layer = Embedding(longest_sequence, embedding_vector_length, input_length=longest_sequence)
     model.add(embedding_layer)
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
     model.add(MaxPooling1D(pool_size=2))
@@ -176,21 +169,19 @@ def classy():
 
 
 def chancy():
-    text, max_possession_events = build_text()
-    y = text.pop('xg').astype(float)
+    sequences, targets, longest_sequence = build_text_sequences(target='xg')
     t = keras.preprocessing.text.Tokenizer()
-    t.fit_on_texts(text.text.tolist())
-    print('VOCAB SIZE: ', str(len(t.word_counts)))
-    x = t.texts_to_sequences(text.text.tolist())
-    x_pad = sequence.pad_sequences(x, maxlen=max_possession_events)
-    x_train, x_test, y_train, y_test = train_test_split(x_pad, y, test_size=0.2, random_state=0)
+    t.fit_on_texts(sequences)
+    sequences_padded = sequence.pad_sequences(t.texts_to_sequences(sequences), maxlen=longest_sequence)
+
+    x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
 
     # create the model
     embedding_vector_length = 32
 
     model = Sequential()
-    model.add(Embedding(60, embedding_vector_length, input_length=max_possession_events))
+    model.add(Embedding(60, embedding_vector_length, input_length=longest_sequence))
     model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
     model.add(MaxPooling1D(pool_size=2))
     model.add(LSTM(64)) #32
@@ -201,7 +192,7 @@ def chancy():
                   metrics=['mean_squared_error'])
     print(model.summary())
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=500, batch_size=256)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1000, batch_size=1024)
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("MSE: %.2f%%" % scores[1])
