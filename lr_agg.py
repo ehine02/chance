@@ -24,7 +24,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=100000)
+    e = pd.read_csv('all_events.csv', nrows=50000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -123,4 +123,22 @@ def log_reg(x, target='chance'):
     print(model.score(x_test, y_test))
     y_pred = [round(p) for p in lr_probs]
     print(confusion_matrix(y_test, y_pred))
-    return model, pd.DataFrame({'actual': y_test, 'pred': y_pred, 'prob': lr_probs})
+    return x, y, pd.DataFrame({'actual': y_test, 'pred': y_pred, 'prob': lr_probs})
+
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+
+def attribute_chance_plot(x, y, labels):
+    #scatter_x = np.array([1, 2, 3, 4, 5])
+    #scatter_y = np.array([5, 4, 3, 2, 1])
+    #group = np.array([1, 3, 2, 1, 3])
+    cdict = {True: 'red', False: 'blue'}
+
+    fig, ax = plt.subplots()
+    for g in np.unique(labels):
+        ix = np.where(labels == g)
+        ax.scatter(x[ix], y[ix], c=cdict[g], label=g, s=100)
+    ax.legend()
+    plt.show()
