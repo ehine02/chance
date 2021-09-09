@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 
+from utils import perform_oversampling
+
 
 def list_if_not_nan(x):
     if x is np.nan:
@@ -24,7 +26,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=50000)
+    e = pd.read_csv('all_events.csv', nrows=1000000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -54,52 +56,57 @@ def load_events():
     return e
 
 
-def classy():
-    # Parameters
+def build_aggregates():
     e = load_events()
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-    e = e.loc[e['type'].isin(['pass', 'carry', 'dribble', 'dribbled past'])]
+    e = e.loc[e['type'].isin(['pass', 'carry'])]
+    e = e.loc[e.team == e.possession_team]
     aggregates = []
 
-    for (_, events) in e.groupby(by=['match_id', 'possession']):
+    for ((match_id, possession_id), events) in e.groupby(by=['match_id', 'possession']):
         events = events.set_index(events['index'])
         events = events.sort_index()
         events.fillna(value=0.0, inplace=True)
-        ed = 0
-        aggregates.append([events.pass_length.sum(),
-                           events.pass_length.var(),
-                           events.pass_speed.mean(),
-                           events.pass_speed.var(),
-                           events.carry_length.sum(),
-                           events.carry_length.var(),
-                           events.carry_speed.mean(),
-                           events.carry_speed.var(),
-                           events.dribble_success.sum(),
-                           events.chance.any()
-                           ])
+        location_x = events.location_x.iloc[-1]
+        location_y = events.location_y.iloc[-1]
+        match_pos = f'{match_id}_{possession_id}'
+        aggregates.append([match_pos, events.pass_length.sum(), events.pass_length.var(),
+                           events.pass_speed.mean(), events.pass_speed.var(), events.pass_speed.max(),
+                           events.carry_length.sum(), events.carry_length.var(),
+                           events.carry_speed.mean(), events.carry_speed.var(), events.carry_speed.max(),
+                           events.delta_x.sum(), events.progression_pct.sum(),
+                           location_x, location_y, events.chance.any()])
 
-    aggregates = pd.DataFrame(aggregates, columns=['sum_pass_length', 'var_pass_length',
-                                                   'avg_pass_speed', 'var_pass_speed',
+    aggregates = pd.DataFrame(aggregates, columns=['match_pos', 'sum_pass_length', 'var_pass_length',
+                                                   'avg_pass_speed', 'var_pass_speed', 'max_pass_speed',
                                                    'sum_carry_length', 'var_carry_length',
-                                                   'avg_carry_speed', 'var_carry_speed', 'sum_dribbles',
-                                                   'chance'])
+                                                   'avg_carry_speed', 'var_carry_speed', 'max_carry_speed',
+                                                   'sum_delta_x', 'sum_progression_pct',
+                                                   'location_x', 'location_y', 'chance'])
 
+    aggregates.replace([np.inf, -np.inf], np.nan, inplace=True)
     aggregates.fillna(value=0.0, inplace=True)
+    return aggregates
 
-    df = aggregates.copy()
-    # Oversampling performed here
-    # first count the records of the majority
-    majority_count = df.chance.value_counts().max()
-    working = [df]
-    # group by each salary band
-    for _, chance in df.groupby('chance'):
-        # append N samples to working list where N is the difference between majority and this band
-        working.append(chance.sample(majority_count - len(chance), replace=True))
-    # add the working list contents to the overall dataframe
-    df = pd.concat(working)
 
-    print(df.chance.value_counts())
+def do_plots():
+    attribute_chance_plot(build_aggregates(), 'sum_progression_pct', 'var_pass_length', 'chance')
+
+    attribute_chance_plot(build_aggregates(), 'sum_progression_pct', 'sum_pass_length', 'chance')
+
+    attribute_chance_plot(build_aggregates(), 'sum_progression_pct', 'max_pass_speed', 'chance')
+
+    attribute_chance_plot(build_aggregates(), 'sum_progression_pct', 'var_pass_speed', 'chance')
+
+    attribute_chance_plot(build_aggregates(), 'location_x', 'location_y', 'chance')
+
+
+def classy():
+    # Parameters
+    aggregates = build_aggregates()
+
+    df = perform_oversampling(aggregates)
 
     return log_reg(df)
 
@@ -130,15 +137,19 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-def attribute_chance_plot(x, y, labels):
-    #scatter_x = np.array([1, 2, 3, 4, 5])
-    #scatter_y = np.array([5, 4, 3, 2, 1])
-    #group = np.array([1, 3, 2, 1, 3])
+def attribute_chance_plot(df, x_value, y_value, label_col):
+    df = df[np.abs(df[y_value] - df[y_value].mean()) <= (2 * df[y_value].std())]
+    x = df[x_value].array
+    y = df[y_value].array
+    labels = df[label_col].array
     cdict = {True: 'red', False: 'blue'}
 
     fig, ax = plt.subplots()
     for g in np.unique(labels):
         ix = np.where(labels == g)
-        ax.scatter(x[ix], y[ix], c=cdict[g], label=g, s=100)
-    ax.legend()
+        ax.scatter(x[ix], y[ix], c=cdict[g], label=g, s=50, marker='2')
+    ax.legend(labels=['No Chance', 'Chance'])
+    plt.title(f'{x_value} vs. {y_value}')
+    plt.xlabel(x_value)
+    plt.ylabel(y_value)
     plt.show()

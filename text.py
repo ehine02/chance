@@ -145,7 +145,7 @@ def classy():
                            keras.metrics.FalseNegatives()])
     print(model.summary())
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=500, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1000, batch_size=1024)
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("Accuracy: %.2f%%" % (scores[1] * 100))
@@ -192,7 +192,7 @@ def chancy():
                   metrics=['mean_squared_error'])
     print(model.summary())
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=1000, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=2000, batch_size=1024)
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test, verbose=True)
     print("MSE: %.2f%%" % scores[1])
