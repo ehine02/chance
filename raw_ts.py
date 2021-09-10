@@ -27,6 +27,7 @@ def build_numeric_sequences(target):
     e = e.loc[~e['type'].isin(['shot'])]
     e.pass_height = e.pass_height.str.split().str[0]
     g = e.groupby(by=['match_id', 'possession'])
+    match_pos = []
     sequences = []
     target_chance = []
     target_xg = []
@@ -35,16 +36,18 @@ def build_numeric_sequences(target):
         events = events.sort_index()
         events.fillna(value=0.0, inplace=True)
 
+        match_pos.append(f'{match_id}_{possession}')
         seq_events = events[['pass_speed', 'pass_length', 'carry_speed', 'carry_length']]
         sequences.append(seq_events.values)
         target_chance.append(events.chance.any())
         target_xg.append(events.xg.iloc[-1])
 
-    seq_df = perform_oversampling(pd.DataFrame({'seqs': sequences,
+    seq_df = perform_oversampling(pd.DataFrame({'match_pos': match_pos,
+                                                'seqs': sequences,
                                                 'chance': target_chance,
                                                 'xg': target_xg}))
     print(seq_df.chance.value_counts())
-    return seq_df.seqs, seq_df[target], g.index.count().max()
+    return seq_df.seqs, seq_df[['match_pos', target]], g.index.count().max()
 
 
 def pad_sequences(sequences, padding_shape, value):
@@ -76,25 +79,25 @@ def classy():
     sequences_padded = pad_sequences(sequences, padding_shape, padding_value)
 
     x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.chance, test_size=0.1, random_state=0)
 
     masking_layer = Masking(mask_value=padding_value, input_shape=padding_shape)
     metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
     model = assemble_model(masking_layer, 'binary_crossentropy', metrics)
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
 
-    scores = model.evaluate(x_test, y_test, verbose=True)
+    scores = model.evaluate(x_test, y_test.chance, verbose=True)
     print(f'Accuracy: {round(scores[1]*100, 1)}%')
 
     y_prob = [i[0] for i in model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
-    print(confusion_matrix(y_test, y_pred))
-    print(classification_report(y_test, y_pred))
+    print(confusion_matrix(y_test.chance, y_pred))
+    print(classification_report(y_test.chance, y_pred))
 
     plot_history(h, 'accuracy')
 
-    return pd.DataFrame({'actual': y_test, 'predicted': y_pred, 'prob': y_prob})
+    return pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.chance, 'predicted': y_pred, 'prob': y_prob})
 
 
 def chancy():
@@ -105,19 +108,19 @@ def chancy():
     sequences_padded = pad_sequences(sequences, padding_shape, padding_value)
 
     x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=0)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
 
     masking_layer = Masking(mask_value=padding_value, input_shape=padding_shape)
     model = assemble_model(masking_layer, MeanSquaredError(), [MeanSquaredError()])
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=200, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
 
-    scores = model.evaluate(x_test, y_test, verbose=True)
+    scores = model.evaluate(x_test, y_test.xg, verbose=True)
     print(f'MSE: {round(scores[1])}')
 
     y_prob = [i[0] for i in model.predict(x_test)]
-    print(f'R2 Score: {r2_score(y_test, y_prob)}')
+    print(f'R2 Score: {r2_score(y_test.xg, y_prob)}')
 
     plot_history(h, 'mean_squared_error')
 
-    return pd.DataFrame({'actual': y_test, 'prob': y_prob})
+    return pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.xg, 'predict': y_prob})
