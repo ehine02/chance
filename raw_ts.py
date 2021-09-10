@@ -15,7 +15,7 @@ from xg_utils import XgMap
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=100000)
+    e = pd.read_csv('all_events_orig_bak.csv', nrows=50000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -53,14 +53,15 @@ def load_events():
 
 def build_numeric_sequences(target):
     # Parameters
-    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length', 'delta_y']
+    dimensions = ['pass_speed', 'pass_length', 'carry_speed', 'carry_length']#, 'delta_y']
 
     e = load_events()
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
 
     # e = e.loc[~e['type'].isin(['shot', 'block', 'goal keeper', 'pressure', 'clearance'])]
-    e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble', 'dribbled past'])]
+    e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble'])]
+    e = e.loc[e.team == e.possession_team]
 
     e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda x: x.iloc[-1])
     e = e.loc[~e['type'].isin(['shot'])]
@@ -101,7 +102,7 @@ def classification_model(mask_value, input_shape):
     model = Sequential()
     model.add(Masking(mask_value=mask_value, input_shape=input_shape))
     model.add(LSTM(64))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.2))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer=WAME(learning_rate=0.0001),
@@ -142,7 +143,7 @@ def classy():
     h = model.fit(x_train,
                   y_train,
                   validation_data=(x_val, y_val),
-                  epochs=1000,
+                  epochs=50,
                   batch_size=1024)
 
     scores = model.evaluate(x_test, y_test, verbose=True)

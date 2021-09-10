@@ -19,7 +19,7 @@ from utils import list_if_not_nan, split_location, location_to_text, perform_ove
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=100000)
+    e = pd.read_csv('all_events_orig_bak.csv')#, nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
@@ -48,6 +48,9 @@ def load_events():
                                                                     labels=['backwards', 'sideways', 'forwards',
                                                                             'dangerous'])
     e['location_text'] = e.apply(location_to_text, axis=1)
+    e['delta_y'] = e.location_y.diff().abs()
+    e['delta_x'] = e.location_x.diff().abs()
+
     e['chance'] = ~e['shot_type'].isna()
     xg = XgMap()
 

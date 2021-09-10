@@ -26,7 +26,7 @@ def split_location(x):
 
 
 def load_events():
-    e = pd.read_csv('all_events.csv', nrows=1000000)
+    e = pd.read_csv('all_events_orig_bak.csv', nrows=100000)
     e = e.loc[~e['shot_type'].isin(['Penalty'])]
     e = e.loc[~e['location'].isin([np.nan])]
     e['location'] = e.location.apply(list_if_not_nan)
