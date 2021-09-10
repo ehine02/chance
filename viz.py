@@ -1,3 +1,5 @@
+import io
+
 import numpy as np
 from matplotlib import pyplot as plt
 from mplsoccer import Pitch
@@ -25,3 +27,15 @@ def plot_events(events):
     events = events[events['chance'] == 1]
     for _, event in events.iterrows():
         ax.plot(event.location_x, event.location_y)
+
+
+def save_embeddings(weights, vocab):
+    out_v = io.open('vectors.tsv', 'w', encoding='utf-8')
+    out_m = io.open('metadata.tsv', 'w', encoding='utf-8')
+
+    for index, word in enumerate(vocab):
+        vec = weights[index]
+        out_v.write('\t'.join([str(x) for x in vec]) + "\n")
+        out_m.write(word + "\n")
+    out_v.close()
+    out_m.close()

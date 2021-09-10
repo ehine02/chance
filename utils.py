@@ -6,7 +6,6 @@ import pandas as pd
 
 def perform_oversampling(unbalanced, target='chance'):
     data = unbalanced.copy()
-    # Oversampling performed here
     # first count the records of the majority
     majority_count = data[target].value_counts().max()
     working = [data]
