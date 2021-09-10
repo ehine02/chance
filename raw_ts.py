@@ -3,10 +3,10 @@ import numpy as np
 
 from sklearn.metrics import confusion_matrix, classification_report, r2_score
 from sklearn.model_selection import train_test_split
+
 from tensorflow import keras
 from tensorflow.python.keras import Sequential
-from tensorflow.python.keras.layers import LSTM, Dense, Masking
-from tensorflow.python.keras.layers import Dropout
+from tensorflow.python.keras.layers import LSTM, Dense, Masking, Dropout
 
 from utils import list_if_not_nan, split_location, perform_oversampling
 from viz import plot_history
