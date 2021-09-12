@@ -1,11 +1,11 @@
 import text
-import raw_ts
+import numeric_sequence
 
 
 def tests():
     return {
-        'Chance Classification': {'Numeric': raw_ts.classy, 'Text': text.classy},
-        'xG Regression': {'Numeric': raw_ts.chancy, 'Text': text.chancy}
+        'Chance Classification': {'Numeric': numeric_sequence.classy, 'Text': text.classy},
+        'xG Regression': {'Numeric': numeric_sequence.chancy, 'Text': text.chancy}
     }
 
 

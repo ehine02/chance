@@ -17,20 +17,22 @@ from utils import location_to_text, perform_oversampling
 
 
 def apply_text_binning(events):
+    events.loc[events.pass_speed != np.nan, 'pass_speed_text'] = pd.qcut(events.pass_speed, 3,
+                                                                         labels=['tapped', 'solid', 'pinged'])
+
+    events.loc[events.carry_speed != np.nan, 'carry_speed_text'] = pd.qcut(events.carry_speed, 3,
+                                                                           labels=['drifted', 'glided', 'surged'])
+
+    events.loc[events.pass_length != np.nan, 'pass_length_text'] = pd.qcut(events.pass_length, 3,
+                                                                           labels=['short', 'midrange', 'longball'])
+
+    events.loc[events.carry_length != np.nan, 'carry_length_text'] = pd.qcut(events.carry_length, 3,
+                                                                             labels=['step', 'advance', 'keptgoing'])
+
+    events.loc[events.progression_pct != np.nan, 'progression_text'] = pd.qcut(events.progression_pct, 4,
+                                                                               labels=['backwards', 'sideways',
+                                                                                       'forwards', 'dangerous'])
     events['location_text'] = events.apply(location_to_text, axis=1)
-
-    events.loc[events.pass_speed != np.nan, 'pass_speed_text'] = pd.cut(events.pass_speed,
-                                                                        bins=[-1, 5, 20, 150],
-                                                                        labels=['tapped', 'solid', 'pinged'])
-
-    events.loc[events.carry_speed != np.nan, 'carry_speed_text'] = pd.cut(events.carry_speed,
-                                                                          bins=[-1, 2.5, 6, 1500],
-                                                                          labels=['drifted', 'glided', 'surged'])
-
-    events.loc[events.progression_pct != np.nan, 'progression_text'] = pd.cut(events.progression_pct,
-                                                                              bins=[-1000, 0, 10, 50, 100],
-                                                                              labels=['backwards', 'sideways',
-                                                                                      'forwards', 'dangerous'])
 
 
 class EventString(list):
@@ -65,12 +67,13 @@ def build_text_sequences(target):
             # commentary.add(event.location_text)
             # commentary.add(event.progression_text)
             if event_type == 'pass':
-                # commentary.add(event.pass_outcome)
                 commentary.add(event.pass_speed_text)
+                commentary.add(event.pass_length_text)
                 commentary.add(event.pass_height)
                 commentary.add(event.pass_type)
             if event_type == 'carry':
                 commentary.add(event.carry_speed_text)
+                commentary.add(event.carry_length_text)
             if event.under_pressure == True:
                 commentary.add('pressured')
             commentary.add(event_type)
@@ -119,7 +122,7 @@ def classy():
     metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
     model = assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=1024)
 
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test.chance, verbose=True)
