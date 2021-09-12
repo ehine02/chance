@@ -88,7 +88,7 @@ def classy():
     h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
 
     scores = model.evaluate(x_test, y_test.chance, verbose=True)
-    print(f'Accuracy: {round(scores[1]*100, 1)}%')
+    print(f'Accuracy: {round(scores[1] * 100, 1)}%')
 
     y_prob = [i[0] for i in model.predict(x_test)]
     y_pred = [round(i) for i in y_prob]
@@ -97,7 +97,8 @@ def classy():
 
     plot_history(h, 'accuracy')
 
-    return pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.chance, 'predicted': y_pred, 'prob': y_prob})
+    return (scores[1] * 100, confusion_matrix(y_test.chance, y_pred)), \
+           pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.chance, 'predicted': y_pred, 'prob': y_prob})
 
 
 def chancy():
@@ -123,4 +124,5 @@ def chancy():
 
     plot_history(h, 'mean_squared_error')
 
-    return pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.xg, 'predict': y_prob})
+    return (scores[1], r2_score(y_test.xg, y_prob)), \
+           pd.DataFrame({'match_pos': y_test.match_pos, 'actual': y_test.xg, 'predict': y_prob})
