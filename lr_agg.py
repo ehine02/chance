@@ -44,8 +44,12 @@ def build_aggregates():
     return aggregates
 
 
-def do_logistic_regression(x, target='chance'):
+def do_logistic_regression(x, inputs, target='chance'):
     y = x.pop(target)
+
+    if inputs is not None:
+        x = x[inputs]
+
     x = StandardScaler().fit_transform(x)
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
 
@@ -70,9 +74,13 @@ def do_logistic_regression(x, target='chance'):
 
 
 def classy():
-    # Parameters
     aggregates = build_aggregates()
 
     df = perform_oversampling(aggregates)
 
-    return do_logistic_regression(df)
+    inputs = ['match_pos', 'sum_pass_length', 'var_pass_length',
+              'avg_pass_speed', 'var_pass_speed', 'max_pass_speed',
+              'sum_carry_length', 'var_carry_length',
+              'avg_carry_speed', 'var_carry_speed', 'max_carry_speed', 'sum_progression_pct']
+
+    return do_logistic_regression(df, ['location_x', 'location_y'])

@@ -69,7 +69,7 @@ def store_events(match_ids='ALL', str_file_name='all_events.csv'):
 
 def load_events(sample_size=50000):
     e = pd.read_csv('all_events_orig_bak.csv', nrows=sample_size)
-    e = e.loc[~e['shot_type'].isin(['Penalty'])]
+    e = e.loc[~e['shot_type'].isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])]
     e = e.loc[~e['location'].isin([np.nan])]
 
     e['location'] = e.location.apply(list_if_not_nan)
