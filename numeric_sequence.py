@@ -14,16 +14,16 @@ from utils import perform_oversampling
 from wame_opt import WAME
 
 
-def classification():
-    nes = NumericEventSequence(10000)
-    nes.do_classification()
+def classification(sample_size=50000, epochs=20):
+    nes = NumericEventSequence(sample_size=sample_size)
+    nes.do_classification(epochs=epochs)
     nes.print_metrics()
     return nes
 
 
-def regression():
-    nes = NumericEventSequence(10000)
-    nes.do_regression()
+def regression(sample_size=50000, epochs=20):
+    nes = NumericEventSequence(sample_size=sample_size)
+    nes.do_regression(epochs=epochs)
     nes.print_metrics()
     return nes
 
@@ -92,7 +92,7 @@ class NumericEventSequence(object):
         print(self.model.summary())
         return self.model
 
-    def do_classification(self, epochs=10, target='chance'):
+    def do_classification(self, epochs=200, target='chance'):
         if self.sequences is None:
             self.build(target=target)
         targets = self.sequences[['match_pos', target]]
@@ -116,8 +116,8 @@ class NumericEventSequence(object):
 
         return self.metrics, self.predicts
 
-    def do_regression(self, epochs=10):
-        sequences, targets, longest_sequence = self.build(target='xg')
+    def do_regression(self, target='xg', epochs=200):
+        sequences, targets, longest_sequence = self.build(target=target)
         sequences_padded, masking_layer = self.pad()
 
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)

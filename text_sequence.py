@@ -16,16 +16,16 @@ from viz import plot_history, save_embeddings
 from utils import location_to_text, perform_oversampling
 
 
-def classification():
-    nes = TextEventSequence(10000)
-    nes.do_classification()
+def classification(sample_size=50000, epochs=20):
+    nes = TextEventSequence(sample_size=sample_size)
+    nes.do_classification(epochs=epochs)
     nes.print_metrics()
     return nes
 
 
-def regression():
-    nes = TextEventSequence(10000)
-    nes.do_regression()
+def regression(sample_size=50000, epochs=20):
+    nes = TextEventSequence(sample_size=sample_size)
+    nes.do_regression(epochs=epochs)
     nes.print_metrics()
     return nes
 
@@ -136,7 +136,7 @@ class TextEventSequence(object):
         print(self.model.summary())
         return self.model
 
-    def do_classification(self, target='chance', epochs=10):
+    def do_classification(self, target='chance', epochs=200):
         if self.sequences is None:
             self.build(target=target)
         targets = self.sequences[['match_pos', target]]
@@ -165,7 +165,7 @@ class TextEventSequence(object):
 
         return self.metrics, self.predicts
 
-    def do_regression(self, target='xg', epochs=10):
+    def do_regression(self, target='xg', epochs=200):
         if self.sequences is None:
             self.build(target=target)
         targets = self.sequences[['match_pos', target]]
