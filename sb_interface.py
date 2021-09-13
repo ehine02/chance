@@ -68,7 +68,7 @@ def store_events(match_ids='ALL', str_file_name='all_events.csv'):
 
 
 def load_events(sample_size=50000):
-    e = pd.read_csv('all_events_orig_bak.csv', nrows=sample_size)
+    e = pd.read_csv('all_events_orig.csv', nrows=sample_size)
     e = e.loc[~e['shot_type'].isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])]
     e = e.loc[~e['location'].isin([np.nan])]
 
@@ -81,6 +81,7 @@ def load_events(sample_size=50000):
 
     e.loc[e.type == 'Carry', 'carry_length'] = round(euclidean_distance((e.location_x, e.location_y),
                                                                         (e.carry_end_x, e.carry_end_y)), 0)
+    e.loc[e.carry_length == 0.0, 'carry_length'] = np.nan
 
     e.loc[e.type == 'Carry', 'carry_speed'] = e.carry_length / e.duration
     e.loc[e.type == 'Pass', 'pass_speed'] = e.pass_length / e.duration

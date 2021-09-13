@@ -1,10 +1,10 @@
-import text
+import text_sequence
 import numeric_sequence
 
 
 def tests():
     return {
-        'Chance Classification': {'Numeric': numeric_sequence.classification},#, 'Text': text.classy},
+        'Chance Classification': {'Numeric': numeric_sequence.classification},#, 'Text': text.do_classification},
         'xG Regression': {'Numeric': numeric_sequence.regression}#, 'Text': text.chancy}
     }
 

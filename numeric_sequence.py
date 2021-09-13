@@ -72,8 +72,8 @@ class NumericEventSequence(object):
         print(self.sequences.chance.value_counts())
         return self.sequences.sequence, self.sequences[['match_pos', target]], g.index.count().max()
 
-    def pad(self, longest_sequence, width):
-        padding_shape = (longest_sequence, width)
+    def pad(self):
+        padding_shape = (self.longest_sequence, len(self.sequences.sequence[0][0])) # longest, width
         padding_value = -10.0
         padded = np.full((len(self.sequences.sequence), padding_shape[0], padding_shape[1]), fill_value=padding_value)
         for index, sequence in enumerate(self.sequences.sequence):
@@ -96,7 +96,7 @@ class NumericEventSequence(object):
         if self.sequences is None:
             self.build(target=target)
         targets = self.sequences[['match_pos', target]]
-        sequences_padded, masking_layer = self.pad(self.longest_sequence, len(self.sequences.sequence[0][0]))  # longest, width
+        sequences_padded, masking_layer = self.pad()
 
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.chance, test_size=0.1, random_state=0)
@@ -116,9 +116,9 @@ class NumericEventSequence(object):
 
         return self.metrics, self.predicts
 
-    def do_regression(self,epochs=10):
+    def do_regression(self, epochs=10):
         sequences, targets, longest_sequence = self.build(target='xg')
-        sequences_padded, masking_layer = self.pad(longest_sequence, len(sequences[0][0]))
+        sequences_padded, masking_layer = self.pad()
 
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
