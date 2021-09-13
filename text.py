@@ -48,6 +48,7 @@ def build_text_sequences(target, sample_size=50000):
     e = load_events(sample_size)
     apply_text_binning(e)
     e.type = e.type.str.lower()
+    e = e.loc[e.team == e.possession_team]
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
     e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble', 'dribbled past'])]
     e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda x: x.iloc[-1])
