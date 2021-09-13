@@ -15,21 +15,22 @@ from wame_opt import WAME
 
 
 def classy():
-    nes = NumericEventSequence()
+    nes = NumericEventSequence(100000)
     nes.do_classification()
     nes.print_metrics()
     return nes
 
 
 def chancy():
-    nes = NumericEventSequence()
+    nes = NumericEventSequence(50000)
     nes.do_regression()
     nes.print_metrics()
     return nes
 
 
 class NumericEventSequence(object):
-    def __init__(self):
+    def __init__(self, sample_size=50000):
+        self.sample_size = sample_size
         self.sequences = None
         self.model = None
         self.training = None
@@ -37,7 +38,7 @@ class NumericEventSequence(object):
         self.metrics = None
 
     def build(self, target):
-        e = load_events()
+        e = load_events(self.sample_size)
         e.type = e.type.str.lower()
         e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
         e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble'])]
@@ -119,7 +120,7 @@ class NumericEventSequence(object):
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
 
         self.model = self.assemble_model(masking_layer, MeanSquaredError(), [MeanSquaredError()])
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=200, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.xg,

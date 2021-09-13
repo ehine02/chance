@@ -7,31 +7,10 @@ from matplotlib import pyplot as plt
 from mplsoccer import Pitch
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
 
 
-def log_reg(x, target='chance'):
-    y = x[target]
-    x = x.drop(columns=[target])
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
-    model = LogisticRegression()
-    model.fit(x_train, y_train)
-    lr_probs = model.predict_proba(x_test)
-    # keep probabilities for the positive outcome only
-    lr_probs = lr_probs[:, 1]
-    # calculate scores
-    ns_probs = [0 for _ in range(len(y_test))]
-    ns_auc = roc_auc_score(y_test, ns_probs)
-    lr_auc = roc_auc_score(y_test, lr_probs)
-    # summarize scores
-    print('No Skill: ROC AUC=%.3f' % (ns_auc))
-    print('Logistic: ROC AUC=%.3f' % (lr_auc))
-    print(model.score(x_test, y_test))
-    return model
-
-
-def xg_events():
-    e = pd.read_csv('all_events_orig.csv')
+def load_xg_events():
+    e = pd.read_csv('all_events_orig_bak.csv')
     e = e.loc[~e['shot_type'].isin([np.nan, 'Penalty'])]
     e = e[['location', 'shot_type', 'shot_outcome']]
     e['location'] = e.location.apply(ast.literal_eval)
@@ -42,8 +21,19 @@ def xg_events():
     return e
 
 
+def do_xg_regression(x, target):
+    y = x.pop(target)
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, random_state=0)
+
+    model = LogisticRegression()
+    model.fit(x_train, y_train)
+
+    print(f'Trained xG model test accuracy score: {model.score(x_test, y_test)}')
+    return model
+
+
 def xg_model():
-    return log_reg(xg_events(), 'goal')
+    return do_xg_regression(load_xg_events(), target='goal')
 
 
 def xg_map():
@@ -71,40 +61,10 @@ class XgMap(object):
         y = min(y, 79.99)
         return self.xg_map[math.floor(x)][math.floor(y)]
 
-    def pretty(self):
+    def plot(self):
         pitch = Pitch(figsize=(16, 8), tight_layout=False, goal_type='box', pitch_color='green', line_color='white')
         fig, ax = pitch.draw()
         plt.pcolor(self.xg_map)
         plt.yticks(np.arange(0.5, len(self.xg_map.index), 1), self.xg_map.index)
         plt.xticks(np.arange(0.5, len(self.xg_map.columns), 1), self.xg_map.columns)
         plt.show()
-
-    def pretty2(self):
-        pitch = Pitch(line_zorder=2, pitch_color='black')
-        fig, ax = pitch.draw()
-        x = np.random.uniform(low=0, high=120, size=100)
-        y = np.random.uniform(low=0, high=80, size=100)
-        stats = pitch.bin_statistic(x, y)
-        pitch.heatmap(stats, edgecolors='black', cmap='hot', ax=ax)
-
-
-def pretty3():
-    import matplotlib.patheffects as path_effects
-    import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-    from matplotlib.colors import LinearSegmentedColormap
-    from scipy.ndimage import gaussian_filter
-
-    from mplsoccer import Pitch, VerticalPitch, FontManager
-    from mplsoccer.statsbomb import read_event, EVENT_SLUG
-
-    # get data
-    match_files = ['19789.json', '19794.json', '19805.json']
-    kwargs = {'related_event_df': False, 'shot_freeze_frame_df': False,
-              'tactics_lineup_df': False, 'warn': False}
-    df = pd.concat([read_event(f'{EVENT_SLUG}/{file}', **kwargs)['event'] for file in match_files])
-    # filter chelsea pressure events
-    mask_chelsea_pressure = (df.team_name == 'Chelsea FCW') & (df.type_name == 'Pressure')
-    df = df.loc[mask_chelsea_pressure, ['x', 'y']]
-    ed = 0
