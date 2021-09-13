@@ -14,15 +14,15 @@ from utils import perform_oversampling
 from wame_opt import WAME
 
 
-def classy():
-    nes = NumericEventSequence(100000)
+def classification():
+    nes = NumericEventSequence(10000)
     nes.do_classification()
     nes.print_metrics()
     return nes
 
 
-def chancy():
-    nes = NumericEventSequence(50000)
+def regression():
+    nes = NumericEventSequence(10000)
     nes.do_regression()
     nes.print_metrics()
     return nes
@@ -36,6 +36,7 @@ class NumericEventSequence(object):
         self.training = None
         self.predicts = None
         self.metrics = None
+        self.longest_sequence = None
 
     def build(self, target):
         e = load_events(self.sample_size)
@@ -48,6 +49,7 @@ class NumericEventSequence(object):
         e = e.loc[~e['type'].isin(['shot'])]
         e.pass_height = e.pass_height.str.split().str[0]
         g = e.groupby(by=['match_id', 'possession'])
+        self.longest_sequence = g.index.count().max()
         match_pos = []
         sequences = []
         target_chance = []
@@ -90,16 +92,18 @@ class NumericEventSequence(object):
         print(self.model.summary())
         return self.model
 
-    def do_classification(self):
-        sequences, targets, longest_sequence = self.build(target='chance')
-        sequences_padded, masking_layer = self.pad(longest_sequence, len(sequences[0][0]))  # longest, width
+    def do_classification(self, epochs=10, target='chance'):
+        if self.sequences is None:
+            self.build(target=target)
+        targets = self.sequences[['match_pos', target]]
+        sequences_padded, masking_layer = self.pad(self.longest_sequence, len(self.sequences.sequence[0][0]))  # longest, width
 
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.chance, test_size=0.1, random_state=0)
 
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
         self.model = self.assemble_model(masking_layer, 'binary_crossentropy', metrics)
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=20, batch_size=1024)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
@@ -112,7 +116,7 @@ class NumericEventSequence(object):
 
         return self.metrics, self.predicts
 
-    def do_regression(self):
+    def do_regression(self,epochs=10):
         sequences, targets, longest_sequence = self.build(target='xg')
         sequences_padded, masking_layer = self.pad(longest_sequence, len(sequences[0][0]))
 
@@ -120,7 +124,7 @@ class NumericEventSequence(object):
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
 
         self.model = self.assemble_model(masking_layer, MeanSquaredError(), [MeanSquaredError()])
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=200, batch_size=1024)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.xg,

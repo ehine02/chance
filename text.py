@@ -107,7 +107,7 @@ def assemble_model(input_layer, loss_function, metrics):
     return model
 
 
-def classy(sample_size=50000):
+def classy(sample_size=10000):
     sequences, targets, longest_sequence = build_text_sequences(target='chance', sample_size=sample_size)
 
     t = keras.preprocessing.text.Tokenizer()
@@ -122,7 +122,7 @@ def classy(sample_size=50000):
     metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
     model = assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=200, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=10, batch_size=1024)
 
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test.chance, verbose=True)
