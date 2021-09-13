@@ -44,8 +44,8 @@ class EventString(list):
         return ' '.join(self)
 
 
-def build_text_sequences(target):
-    e = load_events()
+def build_text_sequences(target, sample_size=50000):
+    e = load_events(sample_size)
     apply_text_binning(e)
     e.type = e.type.str.lower()
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
@@ -107,8 +107,8 @@ def assemble_model(input_layer, loss_function, metrics):
     return model
 
 
-def classy():
-    sequences, targets, longest_sequence = build_text_sequences(target='chance')
+def classy(sample_size=50000):
+    sequences, targets, longest_sequence = build_text_sequences(target='chance', sample_size=sample_size)
 
     t = keras.preprocessing.text.Tokenizer()
     t.fit_on_texts(sequences)
@@ -122,7 +122,7 @@ def classy():
     metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
     model = assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
 
-    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=50, batch_size=1024)
+    h = model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=200, batch_size=1024)
 
     # Final evaluation of the model
     scores = model.evaluate(x_test, y_test.chance, verbose=True)
