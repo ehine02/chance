@@ -40,14 +40,7 @@ class NumericEventSequence(object):
 
     def build(self, target):
         e = load_events(self.sample_size)
-        e.type = e.type.str.lower()
-        e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-        e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble'])]
-        e = e.loc[e.team == e.possession_team]
 
-        e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda x: x.iloc[-1])
-        e = e.loc[~e['type'].isin(['shot'])]
-        e.pass_height = e.pass_height.str.split().str[0]
         g = e.groupby(by=['match_id', 'possession'])
         self.longest_sequence = g.index.count().max()
         match_pos = []

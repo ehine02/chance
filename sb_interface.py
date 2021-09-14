@@ -17,7 +17,7 @@ def get_matches():
     return matches
 
 
-def store_events(match_ids='ALL', str_file_name='all_events.csv'):
+def store_events(match_ids='ALL', str_file_name='raw_events.csv'):
     games = pd.DataFrame()
     xg = XgMap()
     matches = get_matches() if match_ids == 'ALL' else match_ids
@@ -68,7 +68,7 @@ def store_events(match_ids='ALL', str_file_name='all_events.csv'):
 
 
 def load_events(sample_size=5000, read_rows=500000):
-    e = pd.read_csv('no_setpieces.csv')#, nrows=read_rows)
+    e = pd.read_csv('raw_events.csv', nrows=read_rows)
     e = e.groupby(by=['match_id', 'possession']).filter(
         lambda g: (~g.shot_type.isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])).any())
     e = sample_possessions(e, sample_size)
@@ -105,6 +105,14 @@ def load_events(sample_size=5000, read_rows=500000):
     e['xg'] = e.apply(func=lambda event: xg.value(event.location_x, event.location_y), axis=1)
 
     e = e.drop(columns=['location', 'pass_end_location', 'carry_end_location'])
+    e.type = e.type.str.lower()
+    e = e.loc[e.team == e.possession_team]
+    e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
+    e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble'])]
+
+    e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda x: x.iloc[-1])
+    e = e.loc[~e['type'].isin(['shot'])]
+
     return e
 
 

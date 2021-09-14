@@ -70,13 +70,8 @@ class TextEventSequence(object):
 
     def build(self, target):
         e = load_events(self.sample_size)
+
         apply_text_binning(e)
-        e.type = e.type.str.lower()
-        e = e.loc[e.team == e.possession_team]
-        e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
-        e = e.loc[e['type'].isin(['shot', 'pass', 'carry', 'dribble', 'dribbled past'])]
-        e.xg = e.groupby(by=['match_id', 'possession'])['xg'].transform(lambda x: x.iloc[-1])
-        e = e.loc[~e['type'].isin(['shot'])]
         e.pass_height = e.pass_height.str.split().str[0]
         e.pass_type = e.pass_type.str.replace(' ', '')
         e.pass_type = e.pass_type.str.replace('-', '')

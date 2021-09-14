@@ -11,7 +11,7 @@ def tests():
     }
 
 
-def run(num_runs=3, sample_size=5000, epochs=200):
+def run(num_runs=1, sample_size=5000, epochs=20):
     res = {}
     for task, test_funcs in tests().items():
         for approach, test_func in test_funcs.items():
