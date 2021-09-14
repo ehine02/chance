@@ -153,7 +153,7 @@ class TextEventSequence(object):
 
         scores = self.model.evaluate(x_test, y_test.chance, verbose=True)
         self.metrics = {'accuracy': round(scores[1] * 100, 1),
-                        'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted),
+                        'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted).tolist(),
                         'classification_report': classification_report(y_test.chance, self.predicts.predicted)}
 
         save_embeddings(weights=embedding_layer.get_weights()[0], vocab=tokenizer.index_word.values())

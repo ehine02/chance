@@ -104,7 +104,7 @@ class NumericEventSequence(object):
 
         scores = self.model.evaluate(x_test, y_test.chance, verbose=True)
         self.metrics = {'accuracy': round(scores[1] * 100, 1),
-                        'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted),
+                        'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted).tolist(),
                         'classification_report': classification_report(y_test.chance, self.predicts.predicted)}
 
         return self.metrics, self.predicts
