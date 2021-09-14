@@ -14,14 +14,14 @@ from utils import perform_oversampling
 from wame_opt import WAME
 
 
-def classification(sample_size=50000, epochs=20):
+def classification(sample_size=5000, epochs=20):
     nes = NumericEventSequence(sample_size=sample_size)
     nes.do_classification(epochs=epochs)
     nes.print_metrics()
     return nes
 
 
-def regression(sample_size=50000, epochs=20):
+def regression(sample_size=5000, epochs=20):
     nes = NumericEventSequence(sample_size=sample_size)
     nes.do_regression(epochs=epochs)
     nes.print_metrics()
@@ -29,7 +29,7 @@ def regression(sample_size=50000, epochs=20):
 
 
 class NumericEventSequence(object):
-    def __init__(self, sample_size=50000):
+    def __init__(self, sample_size=5000):
         self.sample_size = sample_size
         self.sequences = None
         self.model = None
@@ -137,4 +137,4 @@ class NumericEventSequence(object):
         return self.metrics, self.predicts
 
     def print_metrics(self):
-        [print(f'{metric_name}:\n{content}') for metric_name, content in self.metrics.items()]
+        [print(f'EDS METRICS{metric_name}:\nEDS METRICS{content}') for metric_name, content in self.metrics.items()]

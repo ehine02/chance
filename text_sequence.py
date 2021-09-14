@@ -16,14 +16,14 @@ from viz import plot_history, save_embeddings
 from utils import location_to_text, perform_oversampling
 
 
-def classification(sample_size=50000, epochs=20):
+def classification(sample_size=5000, epochs=20):
     nes = TextEventSequence(sample_size=sample_size)
     nes.do_classification(epochs=epochs)
     nes.print_metrics()
     return nes
 
 
-def regression(sample_size=50000, epochs=20):
+def regression(sample_size=5000, epochs=20):
     nes = TextEventSequence(sample_size=sample_size)
     nes.do_regression(epochs=epochs)
     nes.print_metrics()
@@ -59,7 +59,7 @@ def apply_text_binning(events):
 
 
 class TextEventSequence(object):
-    def __init__(self, sample_size=50000):
+    def __init__(self, sample_size=5000):
         self.sample_size = sample_size
         self.sequences = None
         self.model = None
@@ -68,8 +68,8 @@ class TextEventSequence(object):
         self.metrics = None
         self.longest_sequence = None
 
-    def build(self, target, sample_size=50000):
-        e = load_events(sample_size)
+    def build(self, target):
+        e = load_events(self.sample_size)
         apply_text_binning(e)
         e.type = e.type.str.lower()
         e = e.loc[e.team == e.possession_team]
@@ -189,4 +189,4 @@ class TextEventSequence(object):
         return self.metrics, self.predicts
 
     def print_metrics(self):
-        [print(f'{metric_name}:\n{content}') for metric_name, content in self.metrics.items()]
+        [print(f'EDS METRICS{metric_name}:\nEDS METRICS{content}') for metric_name, content in self.metrics.items()]

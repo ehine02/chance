@@ -67,8 +67,11 @@ def store_events(match_ids='ALL', str_file_name='all_events.csv'):
     return games
 
 
-def load_events(sample_size=50000):
-    e = pd.read_csv('all_events_orig.csv', nrows=sample_size)
+def load_events(sample_size=5000, read_rows=500000):
+    e = pd.read_csv('no_setpieces.csv')#, nrows=read_rows)
+    e = e.groupby(by=['match_id', 'possession']).filter(
+        lambda g: (~g.shot_type.isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])).any())
+    e = sample_possessions(e, sample_size)
     e = e.loc[~e['shot_type'].isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])]
     e = e.loc[~e['location'].isin([np.nan])]
 
@@ -100,7 +103,13 @@ def load_events(sample_size=50000):
 
     xg = XgMap()
     e['xg'] = e.apply(func=lambda event: xg.value(event.location_x, event.location_y), axis=1)
-    #e.loc[e.type == 'Shot', 'xg'] = e.shot_statsbomb_xg
 
     e = e.drop(columns=['location', 'pass_end_location', 'carry_end_location'])
     return e
+
+
+def sample_possessions(events, sample_size=5000):
+    match_pos = events.groupby(by=['match_id', 'possession'])
+    random_groups = np.random.choice(match_pos.ngroups, sample_size, replace=False)
+    return events[match_pos.ngroup().isin(random_groups)]
+

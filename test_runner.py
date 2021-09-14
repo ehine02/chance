@@ -5,13 +5,13 @@ import numeric_sequence
 def tests():
     return {
         'Chance Classification': {'Numeric': numeric_sequence.classification,
-                                  'Text': text_sequence.classification},
-        'xG Regression': {'Numeric': numeric_sequence.regression,
-                          'Text': text_sequence.regression}
+                                  'Text': text_sequence.classification}#,
+        #'xG Regression': {'Numeric': numeric_sequence.regression,
+        #                  'Text': text_sequence.regression}
     }
 
 
-def run(num_runs=3, sample_size=50000, epochs=20):
+def run(num_runs=3, sample_size=5000, epochs=200):
     res = {}
     for task, test_funcs in tests().items():
         for approach, test_func in test_funcs.items():
@@ -23,8 +23,8 @@ def run(num_runs=3, sample_size=50000, epochs=20):
 
 
 def average_metric(run_output, target):
-    mean = 0
     for (task, approach), runs in run_output.items():
+        mean = 0
         for output in runs:
             mean += output.metrics.get(target, 0.0)
         print(f'{task}, {approach}, {mean/len(runs)}')
