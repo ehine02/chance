@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.python.keras import Sequential
 from tensorflow.python.keras.layers import LSTM, Dense, Masking, Dropout
 from keras.metrics import Precision, Recall, FalsePositives, FalseNegatives
-from keras.losses import MeanSquaredError
+from keras.losses import BinaryCrossentropy, MeanSquaredError
 
 from sb_interface import load_events
 from utils import perform_oversampling
@@ -95,8 +95,8 @@ class NumericEventSequence(object):
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.chance, test_size=0.1, random_state=0)
 
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
-        self.model = self.assemble_model(masking_layer, 'binary_crossentropy', metrics)
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=512)
+        self.model = self.assemble_model(masking_layer, BinaryCrossentropy(), metrics)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
