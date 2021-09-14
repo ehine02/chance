@@ -96,7 +96,7 @@ class NumericEventSequence(object):
 
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
         self.model = self.assemble_model(masking_layer, 'binary_crossentropy', metrics)
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=512)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
@@ -110,7 +110,9 @@ class NumericEventSequence(object):
         return self.metrics, self.predicts
 
     def do_regression(self, target='xg', epochs=200):
-        sequences, targets, longest_sequence = self.build(target=target)
+        if self.sequences is None:
+            self.build(target=target)
+        targets = self.sequences[['match_pos', target]]
         sequences_padded, masking_layer = self.pad()
 
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)

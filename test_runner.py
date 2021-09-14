@@ -4,14 +4,14 @@ import numeric_sequence
 
 def tests():
     return {
-        'Chance Classification': {'Numeric': numeric_sequence.classification,
-                                  'Text': text_sequence.classification}#,
-        #'xG Regression': {'Numeric': numeric_sequence.regression,
-        #                  'Text': text_sequence.regression}
+        #'Chance Classification': {'Numeric': numeric_sequence.classification,
+        #                          'Text': text_sequence.classification}#,
+        'xG Regression': {'Numeric': numeric_sequence.regression,
+                          'Text': text_sequence.regression}
     }
 
 
-def run(num_runs=3, sample_size=5000, epochs=100):
+def run(num_runs=3, sample_size=5000, epochs=500):
     res = {}
     for task, test_funcs in tests().items():
         for approach, test_func in test_funcs.items():

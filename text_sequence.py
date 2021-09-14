@@ -145,7 +145,7 @@ class TextEventSequence(object):
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
         self.model = self.assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
 
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
+        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=512)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
