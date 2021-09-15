@@ -124,4 +124,3 @@ def sample_possessions(events, sample_size=5000):
     random_groups = np.random.choice(match_pos.ngroups, sample_size, replace=False)
     return events[match_pos.ngroup().isin(random_groups)]
 
-

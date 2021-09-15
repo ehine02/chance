@@ -61,6 +61,7 @@ def apply_text_binning(events):
 class TextEventSequence(object):
     def __init__(self, sample_size=5000):
         self.sample_size = sample_size
+        self.events = None
         self.sequences = None
         self.model = None
         self.training = None
@@ -70,7 +71,7 @@ class TextEventSequence(object):
 
     def build(self, target):
         e = load_events(self.sample_size)
-
+        self.events = e
         apply_text_binning(e)
         e.pass_height = e.pass_height.str.split().str[0]
         e.pass_type = e.pass_type.str.replace(' ', '')

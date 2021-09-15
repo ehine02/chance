@@ -10,12 +10,12 @@ from sb_interface import load_events
 from utils import perform_oversampling
 
 
-def build_aggregates():
-    e = load_events()
+def build_aggregates(sample_size=5000, read_rows=500000):
+    e = load_events(sample_size=sample_size, read_rows=read_rows)
     e.type = e.type.str.lower()
+    e = e.loc[e.team == e.possession_team]
     e.chance = e.groupby(by=['match_id', 'possession'])['chance'].transform('any')
     e = e.loc[e['type'].isin(['pass', 'carry'])]
-    e = e.loc[e.team == e.possession_team]
     aggregates = []
 
     for ((match_id, possession_id), events) in e.groupby(by=['match_id', 'possession']):
@@ -41,7 +41,7 @@ def build_aggregates():
 
     aggregates.replace([np.inf, -np.inf], np.nan, inplace=True)
     aggregates.fillna(value=0.0, inplace=True)
-    return aggregates
+    return aggregates, e
 
 
 def do_logistic_regression(x, inputs, target='chance'):
@@ -73,14 +73,14 @@ def do_logistic_regression(x, inputs, target='chance'):
     return x, y, pd.DataFrame({'actual': y_test, 'pred': y_pred, 'prob': model_probs})
 
 
-def classy():
-    aggregates = build_aggregates()
+def classy(sample_size=2000):
+    aggregates, events = build_aggregates(sample_size=sample_size)
 
     df = perform_oversampling(aggregates)
 
     inputs = ['match_pos', 'sum_pass_length', 'var_pass_length',
               'avg_pass_speed', 'var_pass_speed', 'max_pass_speed',
               'sum_carry_length', 'var_carry_length',
-              'avg_carry_speed', 'var_carry_speed', 'max_carry_speed', 'sum_progression_pct']
+              'avg_carry_speed', 'var_carry_speed', 'max_carry_speed']#, 'sum_progression_pct']
 
-    return do_logistic_regression(df, ['location_x', 'location_y'])
+    return do_logistic_regression(df, inputs), events
