@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from mplsoccer import Pitch
 
 from lr_agg import build_aggregates
+from utils import list_if_not_nan, split_location
 
 
 def plot_history(history, what):
@@ -73,17 +74,25 @@ def do_interesting_plots():
 
 
 def plot_possession(match_id, possession, events=None):
-    if events is None:
-        events = pd.read_csv('all_events_orig_bak.csv')
-    events = events.loc[events.match_id == match_id].loc[events.possession == possession]
-    events = events.sort_index()
-    print(events.shape)
-    plot_events(events)
-    return events
+    e = events
+    if e is None:
+        e = pd.read_csv('raw_events.csv')
+    e = e.loc[e.match_id == match_id].loc[e.possession == possession]
+    e = e.sort_index()
+    e['location'] = e.location.apply(list_if_not_nan)
+    e['pass_end_location'] = e.pass_end_location.apply(list_if_not_nan)
+    e['carry_end_location'] = e.carry_end_location.apply(list_if_not_nan)
+    e['location_x'], e['location_y'] = zip(*e.location.map(split_location))
+    e['pass_end_x'], e['pass_end_y'] = zip(*e.pass_end_location.map(split_location))
+    e['carry_end_x'], e['carry_end_y'] = zip(*e.carry_end_location.map(split_location))
+    print(e.shape)
+    plot_events(e)
+    return e
 
 
-def inspect_false_positive(predicts, events, match_pos=None):
-    examples = predicts.loc[predicts.predicted != predicts.actual]
+def inspect_false_positive(predicts, events=None, match_pos=None):
+    examples = predicts.loc[predicts.predicted == True]
+    examples = examples.loc[examples.actual == False]
     if match_pos is None:
         row = random.randint(0, examples.shape[0])
     example = examples.iloc[row]
