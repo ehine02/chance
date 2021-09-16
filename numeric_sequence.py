@@ -40,10 +40,8 @@ class NumericEventSequence(object):
         self.longest_sequence = None
 
     def build(self, target):
-        e = load_events(self.sample_size)
-        self.events = e
-
-        g = e.groupby(by=['match_id', 'possession'])
+        self.events = load_events(self.sample_size)
+        g = self.events.groupby(by=['match_id', 'possession'])
         self.longest_sequence = g.index.count().max()
         match_pos = []
         sequences = []
@@ -97,15 +95,17 @@ class NumericEventSequence(object):
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.chance, test_size=0.1, random_state=0)
 
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
-        self.model = self.assemble_model(masking_layer, BinaryCrossentropy(), metrics)
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
+        self.assemble_model(masking_layer, BinaryCrossentropy(), metrics)
+
+        self.training = self.model.fit(x_train, y_train,
+                                       validation_data=(x_val, y_val),
+                                       epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
                                       'predicted': [round(i[0]) for i in self.model.predict(x_test)]})
 
-        scores = self.model.evaluate(x_test, y_test.chance, verbose=True)
-        self.metrics = {'accuracy': round(scores[1] * 100, 1),
+        self.metrics = {'accuracy': round(self.model.evaluate(x_test, y_test.chance, verbose=True)[1] * 100, 1),
                         'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted).tolist(),
                         'classification_report': classification_report(y_test.chance, self.predicts.predicted)}
 
@@ -120,15 +120,17 @@ class NumericEventSequence(object):
         x_train, x_test, y_train, y_test = train_test_split(sequences_padded, targets, test_size=0.2, random_state=0)
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
 
-        self.model = self.assemble_model(masking_layer, MeanSquaredError(), [MeanSquaredError()])
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
+        self.assemble_model(masking_layer, MeanSquaredError(), [MeanSquaredError()])
+
+        self.training = self.model.fit(x_train, y_train,
+                                       validation_data=(x_val, y_val),
+                                       epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.xg,
                                       'predicted': [i[0] for i in self.model.predict(x_test)]})
 
-        scores = self.model.evaluate(x_test, y_test.xg, verbose=True)
-        self.metrics = {'mean_squared_error': round(scores[1], 3),
+        self.metrics = {'mean_squared_error': round(self.model.evaluate(x_test, y_test.xg, verbose=True)[1], 3),
                         'r2_score': r2_score(y_test.xg, self.predicts.predicted)}
 
         return self.metrics, self.predicts

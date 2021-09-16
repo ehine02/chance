@@ -70,14 +70,13 @@ class TextEventSequence(object):
         self.longest_sequence = None
 
     def build(self, target):
-        e = load_events(self.sample_size)
-        self.events = e
-        apply_text_binning(e)
-        e.pass_height = e.pass_height.str.split().str[0]
-        e.pass_type = e.pass_type.str.replace(' ', '')
-        e.pass_type = e.pass_type.str.replace('-', '')
-        e.type = e.type.str.replace(' ', '')
-        g = e.groupby(by=['match_id', 'possession'])
+        self.events = load_events(self.sample_size)
+        apply_text_binning(self.events)
+        self.events.pass_height = self.events.pass_height.str.split().str[0]
+        self.events.pass_type = self.events.pass_type.str.replace(' ', '')
+        self.events.pass_type = self.events.pass_type.str.replace('-', '')
+        self.events.type = self.events.type.str.replace(' ', '')
+        g = self.events.groupby(by=['match_id', 'possession'])
         self.longest_sequence = g.index.count().max()
         text = pd.DataFrame()
         for ((match_id, possession), events) in g:
@@ -144,20 +143,21 @@ class TextEventSequence(object):
         # create the model
         embedding_layer = Embedding(input_dim=self.longest_sequence, output_dim=32)
         metrics = ['accuracy', Precision(), Recall(), FalsePositives(), FalseNegatives()]
-        self.model = self.assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
+        self.assemble_model(embedding_layer, BinaryCrossentropy(), metrics)
 
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=512)
+        self.training = self.model.fit(x_train, y_train,
+                                       validation_data=(x_val, y_val),
+                                       epochs=epochs, batch_size=512)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.chance,
                                       'predicted': [round(i[0]) for i in self.model.predict(x_test)]})
 
-        scores = self.model.evaluate(x_test, y_test.chance, verbose=True)
-        self.metrics = {'accuracy': round(scores[1] * 100, 1),
+        self.metrics = {'accuracy': round(self.model.evaluate(x_test, y_test.chance, verbose=True)[1] * 100, 1),
                         'confusion_matrix': confusion_matrix(y_test.chance, self.predicts.predicted).tolist(),
                         'classification_report': classification_report(y_test.chance, self.predicts.predicted)}
 
-        save_embeddings(weights=embedding_layer.get_weights()[0], vocab=tokenizer.index_word.values())
+        #save_embeddings(weights=embedding_layer.get_weights()[0], vocab=tokenizer.index_word.values())
 
         return self.metrics, self.predicts
 
@@ -171,15 +171,17 @@ class TextEventSequence(object):
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train.xg, test_size=0.1, random_state=0)
 
         embedding_layer = Embedding(input_dim=self.longest_sequence, output_dim=32)
-        self.model = self.assemble_model(embedding_layer, MeanSquaredError(), [MeanSquaredError()])
-        self.training = self.model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size=1024)
+        self.assemble_model(embedding_layer, MeanSquaredError(), [MeanSquaredError()])
+
+        self.training = self.model.fit(x_train, y_train,
+                                       validation_data=(x_val, y_val),
+                                       epochs=epochs, batch_size=1024)
 
         self.predicts = pd.DataFrame({'match_pos': y_test.match_pos,
                                       'actual': y_test.xg,
                                       'predicted': [i[0] for i in self.model.predict(x_test)]})
 
-        scores = self.model.evaluate(x_test, y_test.xg, verbose=True)
-        self.metrics = {'mean_squared_error': round(scores[1], 3),
+        self.metrics = {'mean_squared_error': round(self.model.evaluate(x_test, y_test.xg, verbose=True)[1], 3),
                         'r2_score': r2_score(y_test.xg, self.predicts.predicted)}
 
         return self.metrics, self.predicts
