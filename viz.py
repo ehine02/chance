@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from mplsoccer import Pitch
 
 from lr_agg import build_aggregates
+from utils import list_if_not_nan, split_location
 
 
 def plot_history(history, what):
@@ -27,11 +28,11 @@ def plot_events(events):
     for _, event in events.iterrows():
         event_type = str(event['type']).lower()
         if event_type == 'pass':
-            lt1 = pitch.lines(event.location_x, event.location_y, event.pass_end_x, event.pass_end_y, ax=ax,
-                              color="red", comet=True, label=str(event.index))
+            lt1 = pitch.arrows(event.location_x, event.location_y, event.pass_end_x, event.pass_end_y, ax=ax,
+                              color="red", width=2, headwidth=3, alpha=event.pass_speed_alpha)
         if event_type == 'carry':
-            lt2 = pitch.lines(event.location_x, event.location_y, event.carry_end_x, event.carry_end_y, ax=ax,
-                              color="blue", comet=True, label=str(event.index))
+            lt2 = pitch.arrows(event.location_x, event.location_y, event.carry_end_x, event.carry_end_y, ax=ax,
+                              color="blue", width=2, headwidth=3, label=event.carry_speed_alpha)
 
 
 def save_embeddings(weights, vocab):
@@ -72,18 +73,51 @@ def do_interesting_plots():
     attribute_chance_plot(aggs, 'sum_progression_pct', 'sum_delta_y', 'chance')
 
 
+from sklearn import preprocessing
+
+
+
 def plot_possession(match_id, possession, events=None):
-    if events is None:
-        events = pd.read_csv('all_events_orig_bak.csv')
-    events = events.loc[events.match_id == match_id].loc[events.possession == possession]
-    events = events.sort_index()
-    print(events.shape)
-    plot_events(events)
-    return events
+    e = events
+    if e is None:
+        e = pd.read_csv('raw_events.csv')
+    e = e.loc[e.match_id == match_id].loc[e.possession == possession]
+    e = e.sort_index()
+    e['location'] = e.location.apply(list_if_not_nan)
+    e['pass_end_location'] = e.pass_end_location.apply(list_if_not_nan)
+    e['carry_end_location'] = e.carry_end_location.apply(list_if_not_nan)
+    e['location_x'], e['location_y'] = zip(*e.location.map(split_location))
+    e['pass_end_x'], e['pass_end_y'] = zip(*e.pass_end_location.map(split_location))
+    e['carry_end_x'], e['carry_end_y'] = zip(*e.carry_end_location.map(split_location))
+    e.loc[e.possession_team != e.team, 'location_x'] = 120 - e.location_x
+    e.loc[e.possession_team != e.team, 'location_y'] = 80 - e.location_y
+    e.loc[e.possession_team != e.team, 'pass_end_x'] = 120 - e.pass_end_x
+    e.loc[e.possession_team != e.team, 'pass_end_y'] = 80 - e.pass_end_y
+    e.loc[e.possession_team != e.team, 'carry_end_x'] = 120 - e.carry_end_x
+    e.loc[e.possession_team != e.team, 'carry_end_y'] = 80 - e.carry_end_y
+    e.loc[e.type == 'Carry', 'carry_speed'] = e.carry_length / e.duration
+    e.loc[e.type == 'Pass', 'pass_speed'] = e.pass_length / e.duration
+    e['pass_speed_alpha'] = (e.pass_speed - e.pass_speed.min())/(e.pass_speed.max()-e.pass_speed.min())
+    e['carry_speed_alpha'] = (e.carry_speed - e.carry_speed.min())/(e.carry_speed.max()-e.carry_speed.min())
+
+    print(e.shape)
+    plot_events(e)
+    return e
 
 
-def inspect_false_positive(predicts, events, match_pos=None):
-    examples = predicts.loc[predicts.predicted != predicts.actual]
+def inspect_false_positive(predicts, events=None, match_pos=None):
+    examples = predicts.loc[predicts.predicted == True]
+    examples = examples.loc[examples.actual == False]
+    if match_pos is None:
+        row = random.randint(0, examples.shape[0])
+    example = examples.iloc[row]
+    match_id, possession = map(int, example.match_pos.split('_'))
+    return plot_possession(match_id, possession, events)
+
+
+def inspect_positive_positive(predicts, events=None, match_pos=None):
+    examples = predicts.loc[predicts.predicted == True]
+    examples = examples.loc[examples.actual == True]
     if match_pos is None:
         row = random.randint(0, examples.shape[0])
     example = examples.iloc[row]

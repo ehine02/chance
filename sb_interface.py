@@ -67,8 +67,10 @@ def store_events(match_ids='ALL', str_file_name='raw_events.csv'):
     return games
 
 
-def preprocess_events(read_rows=500000):
-    e = pd.read_csv('raw_events.csv', nrows=read_rows)
+def preprocess_events(events=None, read_rows=500000):
+    e = events
+    if e is None:
+        e = pd.read_csv('raw_events.csv', nrows=read_rows)
     e = e.groupby(by=['match_id', 'possession']).filter(
         lambda g: (~g.shot_type.isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])).any())
     e = e.loc[~e['shot_type'].isin(['Penalty', 'Free Kick', 'Corner', 'Kick Off'])]
