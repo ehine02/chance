@@ -78,9 +78,12 @@ def classy(sample_size=2000):
 
     df = perform_oversampling(aggregates)
 
-    inputs = ['match_pos', 'sum_pass_length', 'var_pass_length',
-              'avg_pass_speed', 'var_pass_speed', 'max_pass_speed',
-              'sum_carry_length', 'var_carry_length',
-              'avg_carry_speed', 'var_carry_speed', 'max_carry_speed']#, 'sum_progression_pct']
+    # inputs = ['match_pos', 'sum_pass_length', 'var_pass_length',
+    #           'avg_pass_speed', 'var_pass_speed', 'max_pass_speed',
+    #           'sum_carry_length', 'var_carry_length',
+    #           'avg_carry_speed', 'var_carry_speed', 'max_carry_speed', 'sum_progression_pct']
+
+    inputs = ['sum_pass_length', 'var_pass_length', 'sum_carry_length', 'var_carry_length',
+              'avg_pass_speed', 'var_pass_speed', 'avg_carry_speed', 'var_carry_speed']
 
     return do_logistic_regression(df, inputs), events
